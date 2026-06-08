@@ -152,7 +152,11 @@ async function start() {
   });
 
   app.get('/api/config', (_req, res) => {
-    res.json({ googleAuth: isGoogleConfigured(), baseUrl });
+    res.json({ googleAuth: isGoogleConfigured(), baseUrl, assetVersion: ASSET_VERSION });
+  });
+
+  app.get('/api/version', (_req, res) => {
+    res.json({ ok: true, assetVersion: ASSET_VERSION, build: '2026-06-08-big-tap' });
   });
 
   app.get('/auth/google', (req, res, next) => {
