@@ -18,10 +18,10 @@
   --energy-low: #ef4444;
   --border: #30363d;
   --radius: 16px;
-  --tap-img-size: min(360px, calc(100vw - 28px));
-  --tap-ring-1-size: min(390px, calc(100vw - 8px));
-  --tap-ring-2-size: min(420px, calc(100vw + 4px));
-  --tap-section-height: min(400px, calc(100vw + 20px));
+  --tap-img-size: min(300px, calc(78vw - 24px));
+  --tap-ring-1-size: min(325px, calc(78vw - 4px));
+  --tap-ring-2-size: min(345px, calc(78vw + 16px));
+  --tap-section-height: min(320px, calc(78vw + 28px));
 }
 
 html, body {
@@ -848,13 +848,22 @@ body {
 
 @media (max-height: 700px) {
   :root {
-    --tap-img-size: min(320px, calc(100vw - 32px));
-    --tap-section-height: min(350px, calc(100vw + 10px));
+    --tap-img-size: min(260px, calc(72vw - 28px));
+    --tap-ring-1-size: min(285px, calc(72vw - 8px));
+    --tap-ring-2-size: min(305px, calc(72vw + 12px));
+    --tap-section-height: min(280px, calc(72vw + 24px));
   }
 }
 
 /* Телефон: фиксированное место под тапалку, кнопки не перекрываются */
 @media (pointer: coarse) {
+  :root {
+    --tap-img-size: min(240px, calc(68vw - 20px));
+    --tap-ring-1-size: min(262px, calc(68vw - 2px));
+    --tap-ring-2-size: min(280px, calc(68vw + 16px));
+    --tap-section-height: min(260px, calc(68vw + 20px));
+  }
+
   .balance-section,
   .level-progress-section,
   .energy-section {
@@ -862,7 +871,7 @@ body {
   }
 
   .tap-section {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   .tap-hint {
