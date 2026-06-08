@@ -107,6 +107,12 @@ function rowToSave(row) {
   };
 }
 
+function publicAvatarUrl(row) {
+  if (!row) return null;
+  if (row.custom_avatar) return `/api/users/${row.id}/avatar`;
+  return row.avatar || null;
+}
+
 function rowToUser(row) {
   if (!row) return null;
   return {
@@ -114,7 +120,7 @@ function rowToUser(row) {
     google_id: row.google_id,
     email: row.email,
     name: row.name,
-    avatar: row.custom_avatar || row.avatar,
+    avatar: publicAvatarUrl(row),
     custom_avatar: row.custom_avatar,
     banned: !!row.banned,
     ban_reason: row.ban_reason,
@@ -131,7 +137,18 @@ async function findOrCreateUser(profile) {
 
   if (mode === 'pg') {
     const existing = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
-    if (existing.rows[0]) return rowToUser(existing.rows[0]);
+    if (existing.rows[0]) {
+      await pool.query(
+        `UPDATE users SET
+           name = COALESCE(NULLIF($1, ''), name),
+           email = COALESCE(NULLIF($2, ''), email),
+           avatar = COALESCE(NULLIF($3, ''), avatar)
+         WHERE google_id = $4`,
+        [name, email, avatar, googleId]
+      );
+      const updated = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+      return rowToUser(updated.rows[0]);
+    }
     const inserted = await pool.query(
       `INSERT INTO users (google_id, email, name, avatar)
        VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -143,7 +160,13 @@ async function findOrCreateUser(profile) {
   }
 
   const existing = fileDb.users.find((u) => u.google_id === googleId);
-  if (existing) return rowToUser(existing);
+  if (existing) {
+    if (name) existing.name = name;
+    if (email) existing.email = email;
+    if (avatar) existing.avatar = avatar;
+    saveFileDb();
+    return rowToUser(existing);
+  }
   const user = {
     id: fileDb.nextUserId++,
     google_id: googleId,
@@ -259,6 +282,31 @@ async function setCustomAvatar(userId, dataUrl) {
   }
 }
 
+async function getAvatarPayload(userId) {
+  let row;
+  if (mode === 'pg') {
+    const res = await pool.query(
+      'SELECT id, custom_avatar, avatar FROM users WHERE id = $1',
+      [userId]
+    );
+    row = res.rows[0];
+  } else {
+    row = fileDb.users.find((u) => u.id === userId);
+  }
+  if (!row) return null;
+
+  if (row.custom_avatar) {
+    const match = row.custom_avatar.match(/^data:(image\/[\w+.-]+);base64,(.+)$/s);
+    if (match) {
+      return { type: 'buffer', mime: match[1], data: Buffer.from(match[2], 'base64') };
+    }
+  }
+  if (row.avatar && row.avatar.startsWith('http')) {
+    return { type: 'redirect', url: row.avatar };
+  }
+  return null;
+}
+
 async function incrementSuspicious(userId, count = 1) {
   if (mode === 'pg') {
     await pool.query(
@@ -324,7 +372,7 @@ async function getLeaderboard() {
       rank: i + 1,
       id: r.id,
       name: r.name || r.email || 'Игрок',
-      avatar: r.custom_avatar || r.avatar,
+      avatar: publicAvatarUrl(r),
       balance: Number(r.balance),
       maxLevel: r.max_level,
       totalTaps: r.total_taps,
@@ -338,7 +386,7 @@ async function getLeaderboard() {
       return {
         id: u.id,
         name: u.name || u.email || 'Игрок',
-        avatar: u.custom_avatar || u.avatar,
+        avatar: publicAvatarUrl(u),
         balance: s?.balance || 0,
         maxLevel: s?.max_level || 1,
         totalTaps: s?.total_taps || 0,
@@ -363,7 +411,7 @@ async function getAllPlayers() {
       id: r.id,
       name: r.name || '—',
       email: r.email || '—',
-      avatar: r.custom_avatar || r.avatar,
+      avatar: publicAvatarUrl(r),
       banned: !!r.banned,
       banReason: r.ban_reason,
       suspicious: r.suspicious_count || 0,
@@ -380,7 +428,7 @@ async function getAllPlayers() {
       id: u.id,
       name: u.name || '—',
       email: u.email || '—',
-      avatar: u.custom_avatar || u.avatar,
+      avatar: publicAvatarUrl(u),
       banned: !!u.banned,
       banReason: u.ban_reason,
       suspicious: u.suspicious_count || 0,
@@ -413,6 +461,7 @@ module.exports = {
   getOrCreateSave,
   upsertSave,
   setCustomAvatar,
+  getAvatarPayload,
   incrementSuspicious,
   setBanned,
   adjustBalance,

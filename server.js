@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const crypto = require('crypto');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -45,6 +46,19 @@ function isAdmin(user) {
   return user?.email && ADMIN_EMAILS.has(user.email.toLowerCase());
 }
 
+function getSessionSecret() {
+  if (process.env.SESSION_SECRET?.trim()) {
+    return process.env.SESSION_SECRET.trim();
+  }
+  if (process.env.DATABASE_URL) {
+    return crypto
+      .createHash('sha256')
+      .update(`${process.env.DATABASE_URL}:fauckzini-session-v1`)
+      .digest('hex');
+  }
+  return 'dev-secret-change-me';
+}
+
 function requireAuth(req, res, next) {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
   if (req.user.banned) return res.status(403).json({ error: 'banned', reason: req.user.ban_reason });
@@ -66,15 +80,17 @@ async function start() {
   app.use(express.json({ limit: '3mb' }));
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+      name: 'fauckzini.sid',
+      secret: getSessionSecret(),
       resave: false,
       saveUninitialized: false,
       store: db.getSessionStore(),
       rolling: true,
+      proxy: true,
       cookie: {
         secure: isProduction,
         httpOnly: true,
-        maxAge: 30 * 24 * 60 * 60 * 1000,
+        maxAge: 90 * 24 * 60 * 60 * 1000,
         sameSite: 'lax',
         path: '/',
       },
@@ -107,11 +123,17 @@ async function start() {
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id, done) => {
-    try {
-      const user = await db.getUserById(id);
-      done(null, user);
-    } catch (err) {
-      done(err);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const user = await db.getUserById(id);
+        return done(null, user || false);
+      } catch (err) {
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+          continue;
+        }
+        return done(err);
+      }
     }
   });
 
@@ -154,6 +176,22 @@ async function start() {
       banned: req.user.banned,
       isAdmin: isAdmin(req.user),
     });
+  });
+
+  app.get('/api/users/:id/avatar', async (req, res) => {
+    try {
+      const userId = Number(req.params.id);
+      if (!Number.isFinite(userId)) return res.status(400).end();
+      const payload = await db.getAvatarPayload(userId);
+      if (!payload) return res.status(404).end();
+      if (payload.type === 'redirect') return res.redirect(payload.url);
+      res.set('Content-Type', payload.mime);
+      res.set('Cache-Control', 'public, max-age=604800, immutable');
+      res.send(payload.data);
+    } catch (err) {
+      console.error(err);
+      res.status(500).end();
+    }
   });
 
   app.get('/api/leaderboard', async (req, res) => {
@@ -270,8 +308,8 @@ async function start() {
         return res.status(400).json({ error: 'Image too large (max 2MB)' });
       }
       await db.setCustomAvatar(req.user.id, image);
-      const user = await db.getUserById(req.user.id);
-      res.json({ avatar: user.avatar });
+      const v = Date.now();
+      res.json({ avatar: `/api/users/${req.user.id}/avatar?v=${v}` });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Avatar upload failed' });
@@ -348,6 +386,11 @@ async function start() {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Fauck Zini running on ${baseUrl}`);
     if (ADMIN_EMAILS.size) console.log(`Admins: ${[...ADMIN_EMAILS].join(', ')}`);
+    console.log(
+      process.env.SESSION_SECRET?.trim()
+        ? 'Sessions: custom SESSION_SECRET'
+        : 'Sessions: stable secret from DATABASE_URL'
+    );
   });
 }
 

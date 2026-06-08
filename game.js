@@ -9,7 +9,15 @@ function storageKey(userId) {
 function rememberUser(user) {
   if (user?.id != null) {
     localStorage.setItem(LAST_USER_KEY, String(user.id));
+    if (user.avatar) {
+      localStorage.setItem(`fauckzini_avatar_u_${user.id}`, user.avatar);
+    }
   }
+}
+
+function getCachedAvatar(userId) {
+  if (!userId) return null;
+  return localStorage.getItem(`fauckzini_avatar_u_${userId}`);
 }
 
 function getLastUserId() {
@@ -120,6 +128,7 @@ let currentUser = null;
 let isAdmin = false;
 let tapPending = false;
 let leaderboardPollTimer = null;
+let sessionRecoveryInProgress = false;
 
 function loadLocalState(userId = null) {
   const keys = userId
@@ -238,11 +247,13 @@ function showUserAuth(user) {
   $('#header-guest')?.classList.add('hidden');
   $('#header-user')?.classList.remove('hidden');
   $('#profile-section')?.classList.remove('hidden');
-  if (user.avatar) {
-    $('#user-avatar').src = user.avatar;
+  const avatar = user.avatar || getCachedAvatar(user.id);
+  if (avatar) {
+    $('#user-avatar').src = avatar;
     $('#user-avatar').alt = user.name || '';
-    $('#user-chip').title = user.name || user.email || 'Аккаунт';
+    rememberUser({ ...user, avatar });
   }
+  $('#user-chip').title = user.name || user.email || 'Аккаунт';
   if (user.isAdmin) $('#admin-link')?.classList.remove('hidden');
   else $('#admin-link')?.classList.add('hidden');
 }
@@ -301,7 +312,8 @@ async function loadCloudSave() {
   try {
     const res = await fetch('/api/save', { credentials: 'include' });
     if (res.status === 401) {
-      await handleSessionLost();
+      const recovered = await recoverSession();
+      if (recovered) return loadCloudSave();
       return;
     }
     if (!res.ok) {
@@ -343,7 +355,7 @@ async function handleSessionLost() {
   render();
 }
 
-async function fetchMe(retries = 3) {
+async function fetchMe(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch('/api/me', { credentials: 'include' });
@@ -351,10 +363,31 @@ async function fetchMe(retries = 3) {
       if (res.status !== 401) return null;
     } catch (_) {}
     if (i < retries - 1) {
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 500 + i * 300));
     }
   }
   return null;
+}
+
+async function recoverSession() {
+  if (sessionRecoveryInProgress) return !!currentUser;
+  sessionRecoveryInProgress = true;
+  try {
+    for (let i = 0; i < 6; i++) {
+      const user = await fetchMe(2);
+      if (user) {
+        currentUser = user;
+        rememberUser(user);
+        isAdmin = user.isAdmin;
+        showUserAuth(user);
+        return true;
+      }
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    return false;
+  } finally {
+    sessionRecoveryInProgress = false;
+  }
 }
 
 async function initAuth() {
@@ -668,7 +701,8 @@ async function tap(e) {
       }
       if (res.status === 429) return;
       if (res.status === 401) {
-        await handleSessionLost();
+        const ok = await recoverSession();
+        if (ok) return tap(e);
         return;
       }
       if (!res.ok) return;
@@ -895,7 +929,10 @@ function initAvatar() {
         return;
       }
       const data = await res.json();
-      $('#user-avatar').src = data.avatar;
+      if (data.avatar) {
+        $('#user-avatar').src = data.avatar;
+        rememberUser({ ...currentUser, avatar: data.avatar });
+      }
       renderLeaderboard();
     };
     reader.readAsDataURL(file);
@@ -966,7 +1003,7 @@ async function boot() {
       try {
         const res = await fetch('/api/tick', { method: 'POST', credentials: 'include' });
         if (res.status === 401) {
-          await handleSessionLost();
+          await recoverSession();
           return;
         }
         if (res.ok) {
@@ -990,16 +1027,15 @@ async function boot() {
       if (currentUser) syncSaveToServer();
     }
     if (document.visibilityState === 'visible' && currentUser) {
-      fetchMe(2).then((user) => {
-        if (user) {
-          currentUser = user;
-          rememberUser(user);
-          showUserAuth(user);
-          loadCloudSave().then(() => {
-            render();
-            refreshLeaderboardIfActive();
-          });
-        }
+      fetchMe(4).then(async (user) => {
+        if (!user) return;
+        currentUser = user;
+        rememberUser(user);
+        isAdmin = user.isAdmin;
+        showUserAuth(user);
+        await loadCloudSave();
+        render();
+        refreshLeaderboardIfActive();
       });
     }
   });
