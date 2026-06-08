@@ -337,7 +337,11 @@ function levelFromBalance(balance) {
 }
 
 function syncMaxLevel() {
-  state.peakBalance = Math.max(state.peakBalance || 0, state.balance);
+  state.peakBalance = Math.max(
+    state.peakBalance || 0,
+    state.balance,
+    state.totalEarned
+  );
   const fromPeak = levelFromBalance(state.peakBalance);
   state.maxLevel = Math.max(state.maxLevel || 1, fromPeak);
 }
@@ -421,10 +425,11 @@ function render() {
     : `→ уровень ${photoLevel.nextLevel}`;
 
   if (photoLevel.isMax) {
-    $('#level-progress-bar-label').textContent = 'Максимальный уровень';
+    $('#level-progress-bar-label').textContent = 'Максимальный уровень 👑';
   } else {
+    const pct = Math.floor(photoLevel.progress * 100);
     $('#level-progress-bar-label').textContent =
-      `${formatCoinsFull(photoLevel.nextThreshold)} 💪 для ур. ${photoLevel.nextLevel}`;
+      `${formatCoinsFull(photoLevel.nextThreshold)} 💪 · ${pct}%`;
   }
 
   const energyPct = (state.energy / stats.maxEnergy) * 100;
