@@ -1018,9 +1018,34 @@ function initTabs() {
 
 function initTap() {
   const zone = $('#tap-zone');
-  zone.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    tap(e);
+  let startX = 0;
+  let startY = 0;
+  let active = false;
+
+  zone.addEventListener(
+    'pointerdown',
+    (e) => {
+      startX = e.clientX;
+      startY = e.clientY;
+      active = true;
+    },
+    { passive: true }
+  );
+
+  zone.addEventListener(
+    'pointerup',
+    (e) => {
+      if (!active) return;
+      active = false;
+      const dx = Math.abs(e.clientX - startX);
+      const dy = Math.abs(e.clientY - startY);
+      if (dx < 12 && dy < 12) tap(e);
+    },
+    { passive: true }
+  );
+
+  zone.addEventListener('pointercancel', () => {
+    active = false;
   });
 }
 

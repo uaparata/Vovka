@@ -25,8 +25,10 @@
 }
 
 html, body {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 body {
@@ -42,11 +44,12 @@ body {
 #app {
   max-width: 430px;
   margin: 0 auto;
-  height: 100dvh;
+  min-height: 100dvh;
+  height: auto;
   display: flex;
   flex-direction: column;
-  padding: 12px 16px 8px;
-  overflow: hidden;
+  padding: 12px 16px 20px;
+  overflow: visible;
 }
 
 .header {
@@ -471,11 +474,9 @@ body {
 }
 
 .bottom-shell {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
 }
 
 .tabs {
@@ -484,6 +485,12 @@ body {
   margin: 0 0 8px;
   flex: 0 0 auto;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding-top: 4px;
+  margin-top: -4px;
 }
 
 .tab {
@@ -509,10 +516,9 @@ body {
 }
 
 .panels-wrap {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .admin-link {
@@ -716,13 +722,7 @@ body {
 
 .panel {
   display: none;
-  position: absolute;
-  inset: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
 .panel.active {
@@ -879,13 +879,4 @@ body {
     font-size: 0.95rem;
   }
 
-  .bottom-shell {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .tabs {
-    z-index: 5;
-    background: var(--bg);
-  }
 }
