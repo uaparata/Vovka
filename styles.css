@@ -166,69 +166,68 @@ body {
 }
 
 .level-progress-section {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .level-progress-card {
-  background: var(--bg-card);
-  border: 1px solid rgba(251, 191, 36, 0.25);
+  background: linear-gradient(160deg, rgba(249, 115, 22, 0.14), rgba(22, 27, 34, 0.98));
+  border: 2px solid rgba(251, 191, 36, 0.45);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 14px 14px 12px;
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.15);
 }
 
-.level-progress-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.level-progress-title {
-  font-size: 0.72rem;
-  font-weight: 800;
+.level-progress-headline {
+  font-size: 1.05rem;
+  font-weight: 900;
   color: var(--gold);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  text-align: center;
+  margin-bottom: 10px;
+  letter-spacing: 0.3px;
 }
 
-.level-progress-target {
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: var(--accent);
-}
-
-.level-progress-bar {
-  height: 12px;
-  background: #0d1117;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+.level-progress-track {
+  position: relative;
+  height: 36px;
+  background: #0a0e14;
+  border: 2px solid rgba(251, 191, 36, 0.35);
+  border-radius: 18px;
   overflow: hidden;
 }
 
 .level-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #fbbf24, #f97316);
-  border-radius: 10px;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+  background: linear-gradient(90deg, #f59e0b, #f97316, #fb923c);
+  border-radius: 16px;
+  transition: width 0.35s ease;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.5);
 }
 
-.level-progress-footer {
+.level-progress-bar-label {
+  position: absolute;
+  inset: 0;
   display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--text-muted);
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 0, 0, 0.6);
+  letter-spacing: 0.4px;
+  z-index: 2;
+  pointer-events: none;
 }
 
-#level-progress-remaining {
-  color: var(--text);
-}
-
-#level-progress-current {
-  color: var(--gold);
+.level-progress-sub {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--accent);
 }
 
 .balance-section {
@@ -284,28 +283,29 @@ body {
 
 .energy-section {
   margin-bottom: 8px;
-  padding: 0 2px;
+  padding: 0 4px;
+  opacity: 0.85;
 }
 
 .energy-header {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   font-weight: 700;
 }
 
 .energy-title {
-  color: var(--energy);
-  font-weight: 800;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .energy-bar {
-  height: 10px;
+  height: 7px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
