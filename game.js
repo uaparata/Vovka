@@ -135,25 +135,9 @@ function applySaveData(data) {
   };
 }
 
-function setSyncStatus(status) {
-  const guestEl = $('#sync-status');
-  const userEl = $('#sync-status-user');
-  const text =
-    status === 'pending' ? 'Сохранение...' :
-    status === 'error' ? 'Ошибка сохранения' :
-    status === 'local' ? 'Прогресс только на этом устройстве' :
-    status === 'guest' ? 'Без входа прогресс только на этом устройстве' :
-    status === 'not_configured' ? 'Вход не настроен — добавь Google OAuth в Railway' :
-    'Сохранено в облаке';
+let googleAuthReady = true;
 
-  if (currentUser && userEl) {
-    userEl.textContent = text;
-    userEl.className = 'sync-status' + (status === 'saved' ? ' saved' : ` ${status}`);
-  } else if (guestEl) {
-    guestEl.textContent = text;
-    guestEl.className = 'auth-footnote' + (status === 'saved' ? ' saved' : status !== 'guest' ? ` ${status}` : '');
-  }
-}
+function setSyncStatus(_status) {}
 
 function saveState() {
   state.lastSave = Date.now();
@@ -188,20 +172,19 @@ function scheduleCloudSave() {
 }
 
 function showGuestAuth() {
-  $('#auth-guest')?.classList.remove('hidden');
-  $('#auth-user')?.classList.add('hidden');
-  setSyncStatus('guest');
+  $('#header-guest')?.classList.remove('hidden');
+  $('#header-user')?.classList.add('hidden');
+  $('#logout-btn')?.classList.add('hidden');
 }
 
 function showUserAuth(user) {
-  $('#auth-guest')?.classList.add('hidden');
-  $('#auth-user')?.classList.remove('hidden');
-  $('#user-name').textContent = user.name || user.email || 'Игрок';
+  $('#header-guest')?.classList.add('hidden');
+  $('#header-user')?.classList.remove('hidden');
   if (user.avatar) {
     $('#user-avatar').src = user.avatar;
     $('#user-avatar').alt = user.name || '';
+    $('#user-chip').title = user.name || user.email || 'Аккаунт';
   }
-  setSyncStatus('saved');
 }
 
 async function checkAuthConfig() {
@@ -209,11 +192,29 @@ async function checkAuthConfig() {
     const res = await fetch('/api/config');
     if (!res.ok) return;
     const cfg = await res.json();
-    if (!cfg.googleAuth) {
-      $('#login-btn')?.classList.add('disabled');
-      setSyncStatus('not_configured');
-    }
+    googleAuthReady = cfg.googleAuth;
   } catch (_) {}
+}
+
+function initLogin() {
+  $('#login-btn')?.addEventListener('click', (e) => {
+    if (!googleAuthReady) {
+      e.preventDefault();
+      alert(
+        'Google OAuth не настроен.\n\n' +
+        'Railway → Variables:\n' +
+        '• GOOGLE_CLIENT_ID\n' +
+        '• GOOGLE_CLIENT_SECRET\n' +
+        '• BASE_URL = https://vovka-production.up.railway.app\n\n' +
+        'Google Console → redirect URI:\n' +
+        'https://vovka-production.up.railway.app/auth/google/callback'
+      );
+    }
+  });
+
+  $('#user-chip')?.addEventListener('click', () => {
+    $('#logout-btn')?.classList.toggle('hidden');
+  });
 }
 
 async function loadCloudSave() {
@@ -495,6 +496,7 @@ async function boot() {
   handleAuthRedirect();
   initTabs();
   initTap();
+  initLogin();
   initLogout();
   await checkAuthConfig();
   await initAuth();
