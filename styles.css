@@ -18,6 +18,10 @@
   --energy-low: #ef4444;
   --border: #30363d;
   --radius: 16px;
+  --tap-img-size: min(360px, calc(100vw - 28px));
+  --tap-ring-1-size: min(390px, calc(100vw - 8px));
+  --tap-ring-2-size: min(420px, calc(100vw + 4px));
+  --tap-section-height: min(400px, calc(100vw + 20px));
 }
 
 html, body {
@@ -325,9 +329,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: clamp(300px, 40dvh, 380px);
-  min-height: 280px;
-  max-height: 380px;
+  height: var(--tap-section-height);
+  min-height: var(--tap-section-height);
   overflow: visible;
   flex-shrink: 0;
 }
@@ -356,15 +359,15 @@ body {
 }
 
 .tap-ring-1 {
-  width: min(320px, 78vw);
-  height: min(320px, 78vw);
+  width: var(--tap-ring-1-size);
+  height: var(--tap-ring-1-size);
   opacity: 0.25;
   animation: pulse-ring 2s ease-in-out infinite;
 }
 
 .tap-ring-2 {
-  width: min(360px, 88vw);
-  height: min(360px, 88vw);
+  width: var(--tap-ring-2-size);
+  height: var(--tap-ring-2-size);
   opacity: 0.18;
   animation: pulse-ring 2s ease-in-out infinite 0.5s;
 }
@@ -375,8 +378,8 @@ body {
 }
 
 .vova-img {
-  width: min(300px, 72vw);
-  height: min(300px, 72vw);
+  width: var(--tap-img-size);
+  height: var(--tap-img-size);
   object-fit: cover;
   border-radius: 50%;
   border: 5px solid var(--accent);
@@ -844,24 +847,9 @@ body {
 }
 
 @media (max-height: 700px) {
-  .vova-img {
-    width: min(260px, 68vw);
-    height: min(260px, 68vw);
-  }
-
-  .tap-section {
-    height: clamp(260px, 34dvh, 300px);
-    min-height: 250px;
-  }
-
-  .tap-ring-1 {
-    width: min(280px, 74vw);
-    height: min(280px, 74vw);
-  }
-
-  .tap-ring-2 {
-    width: min(320px, 84vw);
-    height: min(320px, 84vw);
+  :root {
+    --tap-img-size: min(320px, calc(100vw - 32px));
+    --tap-section-height: min(350px, calc(100vw + 10px));
   }
 }
 
@@ -874,28 +862,7 @@ body {
   }
 
   .tap-section {
-    flex: 0 0 auto;
-    height: clamp(290px, 38dvh, 340px);
-    max-height: 340px;
-    min-height: 275px;
-    overflow: visible;
-    flex-shrink: 0;
     margin-bottom: 4px;
-  }
-
-  .tap-ring-1 {
-    width: min(310px, 80vw);
-    height: min(310px, 80vw);
-  }
-
-  .tap-ring-2 {
-    width: min(350px, 90vw);
-    height: min(350px, 90vw);
-  }
-
-  .vova-img {
-    width: min(290px, 76vw);
-    height: min(290px, 76vw);
   }
 
   .tap-hint {

@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
+const fs = require('fs');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -20,6 +21,19 @@ const {
 const port = Number(process.env.PORT) || 3000;
 const baseUrl = (process.env.BASE_URL || `http://localhost:${port}`).replace(/\/$/, '');
 const isProduction = process.env.NODE_ENV === 'production';
+const ASSET_VERSION =
+  process.env.RAILWAY_DEPLOYMENT_ID ||
+  process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 12) ||
+  `local-${Date.now()}`;
+
+function sendHtml(res, filename) {
+  const filePath = path.join(__dirname, filename);
+  let html = fs.readFileSync(filePath, 'utf8');
+  html = html.replace(/v=\d+/g, `v=${ASSET_VERSION}`);
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.type('html').send(html);
+}
 
 const ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS || '')
@@ -196,8 +210,8 @@ async function start() {
       if (!payload) return res.status(404).end();
       if (payload.type === 'redirect') return res.redirect(payload.url);
       res.set('Content-Type', payload.mime);
-      res.set('Cache-Control', 'public, max-age=86400');
-      res.set('Vary', 'Accept');
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('Pragma', 'no-cache');
       res.send(payload.data);
     } catch (err) {
       console.error(err);
@@ -377,7 +391,7 @@ async function start() {
     if (!req.isAuthenticated() || !isAdmin(req.user)) {
       return res.redirect('/');
     }
-    res.sendFile(path.join(__dirname, 'admin.html'));
+    sendHtml(res, 'admin.html');
   });
 
   app.use((req, res, next) => {
@@ -390,12 +404,12 @@ async function start() {
   app.use(express.static(path.join(__dirname), { index: false, maxAge: 0 }));
 
   app.get('*', (_req, res) => {
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(__dirname, 'index.html'));
+    sendHtml(res, 'index.html');
   });
 
   app.listen(port, '0.0.0.0', () => {
     console.log(`Fauck Zini running on ${baseUrl}`);
+    console.log(`Asset version: ${ASSET_VERSION}`);
     if (ADMIN_EMAILS.size) console.log(`Admins: ${[...ADMIN_EMAILS].join(', ')}`);
     console.log(
       process.env.SESSION_SECRET?.trim()

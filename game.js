@@ -244,15 +244,13 @@ function showGuestAuth() {
   $('#profile-section')?.classList.add('hidden');
 }
 
-function setUserAvatarEl(src, bustCache = false) {
+function setUserAvatarEl(src, bustCache = true) {
   const img = $('#user-avatar');
   if (!img || !src) return;
-  if (bustCache || src.includes('/api/users/')) {
-    const join = src.includes('?') ? '&' : '?';
-    img.src = `${src}${join}_t=${Date.now()}`;
-  } else {
-    img.src = src;
-  }
+  const join = src.includes('?') ? '&' : '?';
+  const url = bustCache ? `${src}${join}_t=${Date.now()}` : src;
+  img.removeAttribute('src');
+  img.src = url;
   img.alt = '';
 }
 
@@ -276,17 +274,11 @@ function showUserAuth(user) {
   $('#header-user')?.classList.remove('hidden');
   $('#profile-section')?.classList.remove('hidden');
 
-  let avatar = user.avatar;
-  if (user.hasCustomAvatar && avatar) {
-    localStorage.setItem(`fauckzini_avatar_u_${user.id}`, avatar);
-  } else if (!avatar) {
-    avatar = getCachedAvatar(user.id);
-  }
-
+  const avatar = user.avatar || getCachedAvatar(user.id);
   if (avatar) {
-    setUserAvatarEl(avatar, !!(user.hasCustomAvatar || avatar.includes('/api/users/')));
+    setUserAvatarEl(avatar, true);
     imgAltFix(user);
-    rememberUser({ ...user, avatar });
+    rememberUser({ ...user, avatar: user.avatar || avatar });
   }
 
   $('#user-chip').title = user.name || user.email || 'Аккаунт';
