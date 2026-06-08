@@ -59,6 +59,7 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions(expire);
     `);
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS max_level INTEGER DEFAULT 1`);
+    await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS peak_balance DOUBLE PRECISION DEFAULT 0`);
     mode = 'pg';
     console.log('Database: PostgreSQL');
     return;
@@ -84,6 +85,7 @@ function rowToSave(row) {
     lastPassive: Number(row.last_passive),
     lastSave: Number(row.last_save),
     maxLevel: row.max_level ?? 1,
+    peakBalance: row.peak_balance ?? 0,
   };
 }
 
@@ -148,13 +150,14 @@ async function upsertSave(userId, save) {
     last_passive: save.lastPassive ?? Date.now(),
     last_save: save.lastSave ?? Date.now(),
     max_level: save.maxLevel ?? 1,
+    peak_balance: save.peakBalance ?? 0,
     updated_at: new Date().toISOString(),
   };
 
   if (mode === 'pg') {
     await pool.query(
-      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (user_id) DO UPDATE SET
          balance = EXCLUDED.balance,
          energy = EXCLUDED.energy,
@@ -164,6 +167,7 @@ async function upsertSave(userId, save) {
          last_passive = EXCLUDED.last_passive,
          last_save = EXCLUDED.last_save,
          max_level = GREATEST(saves.max_level, EXCLUDED.max_level),
+         peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance),
          updated_at = NOW()`,
       [
         userId,
@@ -175,6 +179,7 @@ async function upsertSave(userId, save) {
         payload.last_passive,
         payload.last_save,
         payload.max_level,
+        payload.peak_balance,
       ]
     );
     return;
@@ -184,6 +189,7 @@ async function upsertSave(userId, save) {
   if (idx >= 0) {
     const prev = fileDb.saves[idx];
     payload.max_level = Math.max(prev.max_level || 1, payload.max_level || 1);
+    payload.peak_balance = Math.max(prev.peak_balance || 0, payload.peak_balance || 0);
     fileDb.saves[idx] = { ...prev, ...payload };
   } else {
     fileDb.saves.push(payload);

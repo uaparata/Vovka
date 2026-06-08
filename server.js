@@ -135,7 +135,7 @@ async function start() {
 
   app.put('/api/save', requireAuth, async (req, res) => {
     try {
-      const { balance, energy, totalTaps, totalEarned, maxLevel, upgradeLevels, lastPassive, lastSave } =
+      const { balance, energy, totalTaps, totalEarned, maxLevel, peakBalance, upgradeLevels, lastPassive, lastSave } =
         req.body;
       await db.upsertSave(req.user.id, {
         balance,
@@ -143,6 +143,7 @@ async function start() {
         totalTaps,
         totalEarned,
         maxLevel,
+        peakBalance,
         upgradeLevels,
         lastPassive,
         lastSave,
