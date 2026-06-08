@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <div id="app">
@@ -97,6 +97,14 @@
     </section>
 
     <section id="panel-leaderboard" class="panel">
+      <div class="lb-header">
+        <div class="lb-header-top">
+          <span id="lb-total" class="lb-total">Игроков: —</span>
+          <button id="lb-find-me" class="lb-find-btn hidden" type="button">Найти себя</button>
+        </div>
+        <p id="lb-my-rank" class="lb-my-rank hidden"></p>
+        <p class="lb-hint">В рейтинге только те, кто вошёл через Google. Зинкоины видны всем.</p>
+      </div>
       <div id="leaderboard-list" class="leaderboard-list"></div>
     </section>
 
@@ -126,6 +134,6 @@
     </section>
   </div>
 
-  <script src="game.js?v=7"></script>
+  <script src="game.js?v=8"></script>
 </body>
 </html>

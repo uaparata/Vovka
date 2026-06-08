@@ -156,10 +156,17 @@ async function start() {
     });
   });
 
-  app.get('/api/leaderboard', async (_req, res) => {
+  app.get('/api/leaderboard', async (req, res) => {
     try {
       const players = await db.getLeaderboard();
-      res.json({ players });
+      const myId = req.user?.id;
+      let myRank = null;
+      const enriched = players.map((p) => {
+        const isMe = !!(myId && p.id === myId);
+        if (isMe) myRank = p.rank;
+        return { ...p, isMe };
+      });
+      res.json({ players: enriched, total: enriched.length, myRank });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to load leaderboard' });

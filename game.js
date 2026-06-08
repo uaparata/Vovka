@@ -667,35 +667,125 @@ function applyPassive() {
   render();
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 async function renderLeaderboard() {
   const list = $('#leaderboard-list');
   if (!list) return;
   list.innerHTML = '<p class="lb-loading">Загрузка...</p>';
+
+  const totalEl = $('#lb-total');
+  const myRankEl = $('#lb-my-rank');
+  const findBtn = $('#lb-find-me');
+
   try {
-    const res = await fetch('/api/leaderboard');
-    const { players } = await res.json();
+    const res = await fetch('/api/leaderboard', { credentials: 'include' });
+    const data = await res.json();
+    const players = data.players || data.top || [];
+
+    if (totalEl) {
+      totalEl.textContent = `Игроков: ${data.total ?? players.length}`;
+    }
+
     list.innerHTML = '';
-    if (!players?.length) {
+    if (!players.length) {
+      if (totalEl) totalEl.textContent = 'Игроков: 0';
+      findBtn?.classList.add('hidden');
+      myRankEl?.classList.add('hidden');
       list.innerHTML = '<p class="lb-empty">Пока никого нет — войди через Google!</p>';
       return;
     }
+
+    let hasMe = false;
     for (const p of players) {
       const card = document.createElement('div');
-      card.className = 'lb-card' + (p.rank === 1 ? ' lb-gold' : '');
-      card.innerHTML = `
-        <span class="lb-rank">#${p.rank}</span>
-        ${p.avatar ? `<img class="lb-avatar" src="${p.avatar}" alt="">` : '<span class="lb-avatar-ph">💪</span>'}
-        <div class="lb-info">
-          <span class="lb-name">${p.name}</span>
-          <span class="lb-level">Ур. ${p.maxLevel}</span>
-        </div>
-        <span class="lb-coins">${formatCoinsFull(p.balance)} 💪</span>
-      `;
+      card.className = 'lb-card';
+      if (p.rank === 1) card.classList.add('lb-gold');
+      if (p.isMe) {
+        card.classList.add('lb-me');
+        card.id = 'lb-me';
+        hasMe = true;
+      }
+
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank';
+      rank.textContent = `#${p.rank}`;
+
+      if (p.avatar) {
+        const img = document.createElement('img');
+        img.className = 'lb-avatar';
+        img.src = p.avatar;
+        img.alt = '';
+        card.appendChild(rank);
+        card.appendChild(img);
+      } else {
+        const ph = document.createElement('span');
+        ph.className = 'lb-avatar-ph';
+        ph.textContent = '💪';
+        card.appendChild(rank);
+        card.appendChild(ph);
+      }
+
+      const info = document.createElement('div');
+      info.className = 'lb-info';
+      const name = document.createElement('span');
+      name.className = 'lb-name';
+      name.textContent = p.name || 'Игрок';
+      if (p.isMe) {
+        const badge = document.createElement('span');
+        badge.className = 'lb-you-badge';
+        badge.textContent = 'ТЫ';
+        name.appendChild(badge);
+      }
+      const level = document.createElement('span');
+      level.className = 'lb-level';
+      level.textContent = `Ур. ${p.maxLevel}`;
+      info.appendChild(name);
+      info.appendChild(level);
+
+      const coins = document.createElement('span');
+      coins.className = 'lb-coins';
+      coins.textContent = `${formatCoinsFull(p.balance)} 💪`;
+
+      card.appendChild(info);
+      card.appendChild(coins);
       list.appendChild(card);
+    }
+
+    if (hasMe && data.myRank) {
+      myRankEl?.classList.remove('hidden');
+      if (myRankEl) {
+        myRankEl.textContent = `Твоё место: #${data.myRank} · ${formatCoinsFull(state.balance)} 💪`;
+      }
+      findBtn?.classList.remove('hidden');
+    } else {
+      myRankEl?.classList.add('hidden');
+      findBtn?.classList.add('hidden');
+      if (!currentUser && myRankEl) {
+        myRankEl.classList.remove('hidden');
+        myRankEl.textContent = 'Войди через Google — попадёшь в общий рейтинг';
+      }
     }
   } catch (_) {
     list.innerHTML = '<p class="lb-empty">Ошибка загрузки</p>';
   }
+}
+
+function initLeaderboard() {
+  $('#lb-find-me')?.addEventListener('click', () => {
+    const me = document.getElementById('lb-me');
+    if (me) {
+      me.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      me.classList.add('lb-gold');
+      setTimeout(() => me.classList.remove('lb-gold'), 1200);
+    }
+  });
 }
 
 function initAvatar() {
@@ -773,6 +863,7 @@ async function boot() {
   initLogin();
   initLogout();
   initAvatar();
+  initLeaderboard();
   await checkAuthConfig();
   await initAuth();
   syncMaxLevel();
