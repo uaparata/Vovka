@@ -355,6 +355,18 @@ async function handleSessionLost() {
   render();
 }
 
+async function waitForServer(maxMs = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    try {
+      const res = await fetch('/api/config', { credentials: 'include' });
+      if (res.ok) return true;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  return false;
+}
+
 async function fetchMe(retries = 5) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -391,7 +403,7 @@ async function recoverSession() {
 }
 
 async function initAuth() {
-  const user = await fetchMe();
+  const user = await fetchMe(15);
   if (user) {
     currentUser = user;
     rememberUser(user);
@@ -989,6 +1001,7 @@ async function boot() {
   initAvatar();
   initLeaderboard();
   await checkAuthConfig();
+  await waitForServer();
   await initAuth();
   syncMaxLevel();
   initOfflineProgress();

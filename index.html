@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
   <div id="app">
@@ -86,54 +86,58 @@
       <div id="float-container" class="float-container"></div>
     </section>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="upgrades">Улучшения</button>
-      <button class="tab" data-tab="leaderboard">Топ игроков</button>
-      <button class="tab" data-tab="stats">Профиль</button>
-    </nav>
+    <div class="bottom-shell">
+      <nav class="tabs">
+        <button class="tab active" data-tab="upgrades">Улучшения</button>
+        <button class="tab" data-tab="leaderboard">Топ игроков</button>
+        <button class="tab" data-tab="stats">Профиль</button>
+      </nav>
 
-    <section id="panel-upgrades" class="panel active">
-      <div id="upgrades-list" class="upgrades-list"></div>
-    </section>
+      <div class="panels-wrap">
+        <section id="panel-upgrades" class="panel active">
+          <div id="upgrades-list" class="upgrades-list"></div>
+        </section>
 
-    <section id="panel-leaderboard" class="panel">
-      <div class="lb-header">
-        <div class="lb-header-top">
-          <span id="lb-total" class="lb-total">Игроков: —</span>
-          <button id="lb-find-me" class="lb-find-btn hidden" type="button">Найти себя</button>
-        </div>
-        <p id="lb-my-rank" class="lb-my-rank hidden"></p>
-        <p class="lb-hint">В рейтинге только те, кто вошёл через Google. Зинкоины видны всем.</p>
-      </div>
-      <div id="leaderboard-list" class="leaderboard-list"></div>
-    </section>
+        <section id="panel-leaderboard" class="panel">
+          <div class="lb-header">
+            <div class="lb-header-top">
+              <span id="lb-total" class="lb-total">Игроков: —</span>
+              <button id="lb-find-me" class="lb-find-btn hidden" type="button">Найти себя</button>
+            </div>
+            <p id="lb-my-rank" class="lb-my-rank hidden"></p>
+            <p class="lb-hint">В рейтинге только те, кто вошёл через Google. Зинкоины видны всем.</p>
+          </div>
+          <div id="leaderboard-list" class="leaderboard-list"></div>
+        </section>
 
-    <section id="panel-stats" class="panel">
-      <div id="profile-section" class="profile-section hidden">
-        <button id="avatar-upload-btn" class="avatar-upload-btn" type="button">📷 Сменить аватар</button>
+        <section id="panel-stats" class="panel">
+          <div id="profile-section" class="profile-section hidden">
+            <button id="avatar-upload-btn" class="avatar-upload-btn" type="button">📷 Сменить аватар</button>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">Всего тапов</span>
+              <span id="stat-taps" class="stat-value">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Всего заработано</span>
+              <span id="stat-earned" class="stat-value">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Улучшений куплено</span>
+              <span id="stat-upgrades" class="stat-value">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Уровень Вовы</span>
+              <span id="stat-rank" class="stat-value">1 — Новичок</span>
+            </div>
+          </div>
+          <p class="footer-note">Сделано для Вовы Зинченко 💪</p>
+        </section>
       </div>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <span class="stat-label">Всего тапов</span>
-          <span id="stat-taps" class="stat-value">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Всего заработано</span>
-          <span id="stat-earned" class="stat-value">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Улучшений куплено</span>
-          <span id="stat-upgrades" class="stat-value">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Уровень Вовы</span>
-          <span id="stat-rank" class="stat-value">1 — Новичок</span>
-        </div>
-      </div>
-      <p class="footer-note">Сделано для Вовы Зинченко 💪</p>
-    </section>
+    </div>
   </div>
 
-  <script src="game.js?v=11"></script>
+  <script src="game.js?v=12"></script>
 </body>
 </html>
