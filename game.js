@@ -94,9 +94,12 @@ const defaultState = () => ({
   lastPassive: Date.now(),
 });
 
-let state = loadState();
+let state = loadLocalState();
+let currentUser = null;
+let saveTimeout = null;
+let isSyncing = false;
 
-function loadState() {
+function loadLocalState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -107,9 +110,143 @@ function loadState() {
   return defaultState();
 }
 
+function getSavePayload() {
+  return {
+    balance: state.balance,
+    energy: state.energy,
+    totalTaps: state.totalTaps,
+    totalEarned: state.totalEarned,
+    upgradeLevels: state.upgradeLevels,
+    lastPassive: state.lastPassive,
+    lastSave: state.lastSave,
+  };
+}
+
+function applySaveData(data) {
+  state = {
+    ...defaultState(),
+    balance: data.balance ?? 0,
+    energy: data.energy ?? 1000,
+    totalTaps: data.totalTaps ?? 0,
+    totalEarned: data.totalEarned ?? 0,
+    upgradeLevels: { ...defaultState().upgradeLevels, ...(data.upgradeLevels || {}) },
+    lastPassive: data.lastPassive ?? Date.now(),
+    lastSave: data.lastSave ?? Date.now(),
+  };
+}
+
+function setSyncStatus(status) {
+  const el = $('#sync-status');
+  if (!el) return;
+  el.textContent =
+    status === 'pending' ? 'Сохранение...' :
+    status === 'error' ? 'Ошибка сохранения' :
+    status === 'local' ? 'Только на устройстве' :
+    'Сохранено в облаке';
+  el.className = 'sync-status' + (status !== 'saved' ? ` ${status}` : '');
+}
+
 function saveState() {
   state.lastSave = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (currentUser) scheduleCloudSave();
+  else setSyncStatus('local');
+}
+
+async function syncToServer() {
+  if (!currentUser || isSyncing) return;
+  isSyncing = true;
+  setSyncStatus('pending');
+  try {
+    const res = await fetch('/api/save', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(getSavePayload()),
+    });
+    if (!res.ok) throw new Error('save failed');
+    setSyncStatus('saved');
+  } catch (_) {
+    setSyncStatus('error');
+  } finally {
+    isSyncing = false;
+  }
+}
+
+function scheduleCloudSave() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(syncToServer, 800);
+}
+
+function showGuestAuth() {
+  $('#auth-guest')?.classList.remove('hidden');
+  $('#auth-user')?.classList.add('hidden');
+  setSyncStatus('local');
+}
+
+function showUserAuth(user) {
+  $('#auth-guest')?.classList.add('hidden');
+  $('#auth-user')?.classList.remove('hidden');
+  $('#user-name').textContent = user.name || user.email || 'Игрок';
+  if (user.avatar) {
+    $('#user-avatar').src = user.avatar;
+    $('#user-avatar').alt = user.name || '';
+  }
+  setSyncStatus('saved');
+}
+
+async function loadCloudSave() {
+  try {
+    const res = await fetch('/api/save', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const local = loadLocalState();
+
+    if (data.save) {
+      if (local.totalEarned > data.save.totalEarned) {
+        applySaveData(local);
+        await syncToServer();
+      } else {
+        applySaveData(data.save);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+    } else if (local.totalEarned > 0) {
+      applySaveData(local);
+      await syncToServer();
+    }
+  } catch (_) {}
+}
+
+async function initAuth() {
+  try {
+    const res = await fetch('/api/me', { credentials: 'include' });
+    if (res.ok) {
+      currentUser = await res.json();
+      showUserAuth(currentUser);
+      await loadCloudSave();
+      return;
+    }
+  } catch (_) {}
+  showGuestAuth();
+}
+
+function initLogout() {
+  $('#logout-btn')?.addEventListener('click', async () => {
+    await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+    currentUser = null;
+    showGuestAuth();
+    window.location.href = '/';
+  });
+}
+
+function handleAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('auth') === 'failed') {
+    alert('Не удалось войти через Google. Попробуй ещё раз.');
+  }
+  if (params.has('auth')) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 }
 
 function getUpgradePrice(upgrade) {
@@ -330,16 +467,26 @@ function initOfflineProgress() {
   state.lastPassive = now;
 }
 
-initOfflineProgress();
-initTabs();
-initTap();
-render();
+async function boot() {
+  handleAuthRedirect();
+  initTabs();
+  initTap();
+  initLogout();
+  await initAuth();
+  initOfflineProgress();
+  render();
 
-setInterval(() => {
-  applyPassive();
-  saveState();
-}, 1000);
+  setInterval(() => {
+    applyPassive();
+    saveState();
+  }, 1000);
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saveState();
-});
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      saveState();
+      if (currentUser) syncToServer();
+    }
+  });
+}
+
+boot();
