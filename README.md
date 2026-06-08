@@ -13,7 +13,7 @@ npm start
 
 Открой http://localhost:3000
 
-Без `DATABASE_URL` используется SQLite (`data/game.db`) — удобно для разработки.
+Без `DATABASE_URL` используется JSON-файл (`data/store.json`) — только для локальной разработки. На Railway нужен PostgreSQL.
 
 ## Google OAuth — настройка
 

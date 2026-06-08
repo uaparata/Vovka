@@ -3,7 +3,24 @@ const fs = require('fs');
 
 let mode = null;
 let pool = null;
-let sqlite = null;
+let fileDb = null;
+
+const FILE_DB_PATH = path.join(__dirname, 'data', 'store.json');
+
+function loadFileDb() {
+  const dataDir = path.dirname(FILE_DB_PATH);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  if (!fs.existsSync(FILE_DB_PATH)) {
+    const empty = { users: [], saves: [], nextUserId: 1 };
+    fs.writeFileSync(FILE_DB_PATH, JSON.stringify(empty, null, 2));
+    return empty;
+  }
+  return JSON.parse(fs.readFileSync(FILE_DB_PATH, 'utf8'));
+}
+
+function saveFileDb() {
+  fs.writeFileSync(FILE_DB_PATH, JSON.stringify(fileDb, null, 2));
+}
 
 async function initDatabase() {
   if (process.env.DATABASE_URL) {
@@ -46,33 +63,9 @@ async function initDatabase() {
     return;
   }
 
-  const Database = require('better-sqlite3');
-  const dataDir = path.join(__dirname, 'data');
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  sqlite = new Database(path.join(dataDir, 'game.db'));
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      google_id TEXT UNIQUE NOT NULL,
-      email TEXT,
-      name TEXT,
-      avatar TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS saves (
-      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      balance REAL DEFAULT 0,
-      energy REAL DEFAULT 1000,
-      total_taps INTEGER DEFAULT 0,
-      total_earned REAL DEFAULT 0,
-      upgrade_levels TEXT DEFAULT '{}',
-      last_passive INTEGER DEFAULT 0,
-      last_save INTEGER DEFAULT 0,
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-  mode = 'sqlite';
-  console.log('Database: SQLite (local dev)');
+  fileDb = loadFileDb();
+  mode = 'file';
+  console.log('Database: JSON file (local dev only)');
 }
 
 function rowToSave(row) {
@@ -109,12 +102,19 @@ async function findOrCreateUser(profile) {
     return inserted.rows[0];
   }
 
-  const existing = sqlite.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
+  const existing = fileDb.users.find((u) => u.google_id === googleId);
   if (existing) return existing;
-  const info = sqlite
-    .prepare('INSERT INTO users (google_id, email, name, avatar) VALUES (?, ?, ?, ?)')
-    .run(googleId, email, name, avatar);
-  return sqlite.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+  const user = {
+    id: fileDb.nextUserId++,
+    google_id: googleId,
+    email,
+    name,
+    avatar,
+    created_at: new Date().toISOString(),
+  };
+  fileDb.users.push(user);
+  saveFileDb();
+  return user;
 }
 
 async function getUserById(id) {
@@ -122,7 +122,7 @@ async function getUserById(id) {
     const res = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
     return res.rows[0] || null;
   }
-  return sqlite.prepare('SELECT * FROM users WHERE id = ?').get(id) || null;
+  return fileDb.users.find((u) => u.id === id) || null;
 }
 
 async function getSave(userId) {
@@ -130,22 +130,23 @@ async function getSave(userId) {
     const res = await pool.query('SELECT * FROM saves WHERE user_id = $1', [userId]);
     return rowToSave(res.rows[0]);
   }
-  const row = sqlite.prepare('SELECT * FROM saves WHERE user_id = ?').get(userId);
+  const row = fileDb.saves.find((s) => s.user_id === userId);
   return rowToSave(row);
 }
 
 async function upsertSave(userId, save) {
-  const levels = JSON.stringify(save.upgradeLevels || {});
-  const payload = [
-    userId,
-    save.balance ?? 0,
-    save.energy ?? 1000,
-    save.totalTaps ?? 0,
-    save.totalEarned ?? 0,
-    levels,
-    save.lastPassive ?? Date.now(),
-    save.lastSave ?? Date.now(),
-  ];
+  const levels = save.upgradeLevels || {};
+  const payload = {
+    user_id: userId,
+    balance: save.balance ?? 0,
+    energy: save.energy ?? 1000,
+    total_taps: save.totalTaps ?? 0,
+    total_earned: save.totalEarned ?? 0,
+    upgrade_levels: levels,
+    last_passive: save.lastPassive ?? Date.now(),
+    last_save: save.lastSave ?? Date.now(),
+    updated_at: new Date().toISOString(),
+  };
 
   if (mode === 'pg') {
     await pool.query(
@@ -160,26 +161,24 @@ async function upsertSave(userId, save) {
          last_passive = EXCLUDED.last_passive,
          last_save = EXCLUDED.last_save,
          updated_at = NOW()`,
-      payload
+      [
+        userId,
+        payload.balance,
+        payload.energy,
+        payload.total_taps,
+        payload.total_earned,
+        JSON.stringify(levels),
+        payload.last_passive,
+        payload.last_save,
+      ]
     );
     return;
   }
 
-  sqlite
-    .prepare(
-      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET
-         balance = excluded.balance,
-         energy = excluded.energy,
-         total_taps = excluded.total_taps,
-         total_earned = excluded.total_earned,
-         upgrade_levels = excluded.upgrade_levels,
-         last_passive = excluded.last_passive,
-         last_save = excluded.last_save,
-         updated_at = datetime('now')`
-    )
-    .run(...payload);
+  const idx = fileDb.saves.findIndex((s) => s.user_id === userId);
+  if (idx >= 0) fileDb.saves[idx] = payload;
+  else fileDb.saves.push(payload);
+  saveFileDb();
 }
 
 function getSessionStore() {
