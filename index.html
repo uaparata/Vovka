@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
   <div id="app">
@@ -27,8 +27,10 @@
           <button id="user-chip" class="user-chip" type="button" title="Аккаунт">
             <img id="user-avatar" class="user-avatar-sm" src="" alt="">
           </button>
+          <a id="admin-link" class="admin-link hidden" href="/admin" title="Админ">⚙</a>
           <button id="logout-btn" class="logout-dot hidden" type="button" title="Выйти">✕</button>
         </div>
+        <input type="file" id="avatar-input" accept="image/*" hidden>
       </div>
     </header>
 
@@ -86,14 +88,22 @@
 
     <nav class="tabs">
       <button class="tab active" data-tab="upgrades">Улучшения</button>
-      <button class="tab" data-tab="stats">Статистика</button>
+      <button class="tab" data-tab="leaderboard">Топ-5</button>
+      <button class="tab" data-tab="stats">Профиль</button>
     </nav>
 
     <section id="panel-upgrades" class="panel active">
       <div id="upgrades-list" class="upgrades-list"></div>
     </section>
 
+    <section id="panel-leaderboard" class="panel">
+      <div id="leaderboard-list" class="leaderboard-list"></div>
+    </section>
+
     <section id="panel-stats" class="panel">
+      <div id="profile-section" class="profile-section hidden">
+        <button id="avatar-upload-btn" class="avatar-upload-btn" type="button">📷 Сменить аватар</button>
+      </div>
       <div class="stats-grid">
         <div class="stat-card">
           <span class="stat-label">Всего тапов</span>
@@ -116,6 +126,6 @@
     </section>
   </div>
 
-  <script src="game.js?v=4"></script>
+  <script src="game.js?v=6"></script>
 </body>
 </html>

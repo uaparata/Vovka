@@ -98,8 +98,8 @@ const defaultState = () => ({
 
 let state = loadLocalState();
 let currentUser = null;
-let saveTimeout = null;
-let isSyncing = false;
+let isAdmin = false;
+let tapPending = false;
 
 function loadLocalState() {
   try {
@@ -154,49 +154,29 @@ function setSyncStatus(_status) {}
 function saveState() {
   state.lastSave = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  if (currentUser) scheduleCloudSave();
-  else setSyncStatus('local');
-}
-
-async function syncToServer() {
-  if (!currentUser || isSyncing) return;
-  isSyncing = true;
-  setSyncStatus('pending');
-  try {
-    const res = await fetch('/api/save', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(getSavePayload()),
-    });
-    if (!res.ok) throw new Error('save failed');
-    setSyncStatus('saved');
-  } catch (_) {
-    setSyncStatus('error');
-  } finally {
-    isSyncing = false;
-  }
-}
-
-function scheduleCloudSave() {
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(syncToServer, 800);
 }
 
 function showGuestAuth() {
+  currentUser = null;
+  isAdmin = false;
   $('#header-guest')?.classList.remove('hidden');
   $('#header-user')?.classList.add('hidden');
   $('#logout-btn')?.classList.add('hidden');
+  $('#admin-link')?.classList.add('hidden');
+  $('#profile-section')?.classList.add('hidden');
 }
 
 function showUserAuth(user) {
   $('#header-guest')?.classList.add('hidden');
   $('#header-user')?.classList.remove('hidden');
+  $('#profile-section')?.classList.remove('hidden');
   if (user.avatar) {
     $('#user-avatar').src = user.avatar;
     $('#user-avatar').alt = user.name || '';
     $('#user-chip').title = user.name || user.email || 'Аккаунт';
   }
+  if (user.isAdmin) $('#admin-link')?.classList.remove('hidden');
+  else $('#admin-link')?.classList.add('hidden');
 }
 
 async function checkAuthConfig() {
@@ -237,25 +217,8 @@ async function loadCloudSave() {
     const local = loadLocalState();
 
     if (data.save) {
-      const useLocal =
-        local.totalEarned > data.save.totalEarned ||
-        (local.maxLevel || 1) > (data.save.maxLevel || 1);
-      if (useLocal) {
-        applySaveData(local);
-        state.maxLevel = Math.max(local.maxLevel || 1, data.save.maxLevel || 1);
-        state.peakBalance = Math.max(local.peakBalance || 0, data.save.peakBalance || 0);
-        syncMaxLevel();
-        await syncToServer();
-      } else {
-        applySaveData(data.save);
-        state.maxLevel = Math.max(state.maxLevel || 1, local.maxLevel || 1);
-        state.peakBalance = Math.max(state.peakBalance || 0, local.peakBalance || 0);
-        syncMaxLevel();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      }
-    } else if (local.totalEarned > 0) {
-      applySaveData(local);
-      await syncToServer();
+      applySaveData(data.save);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
   } catch (_) {}
 }
@@ -265,6 +228,13 @@ async function initAuth() {
     const res = await fetch('/api/me', { credentials: 'include' });
     if (res.ok) {
       currentUser = await res.json();
+      if (currentUser.banned) {
+        alert('Аккаунт заблокирован');
+        await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+        showGuestAuth();
+        return;
+      }
+      isAdmin = currentUser.isAdmin;
       showUserAuth(currentUser);
       await loadCloudSave();
       return;
@@ -289,6 +259,9 @@ function handleAuthRedirect() {
   }
   if (params.get('auth') === 'not_configured') {
     alert('Google OAuth не настроен. Замени your-client-id на настоящие ключи в Railway → Variables.');
+  }
+  if (params.get('auth') === 'banned') {
+    alert('Аккаунт заблокирован администратором.');
   }
   if (params.has('auth')) {
     window.history.replaceState({}, '', window.location.pathname);
@@ -479,7 +452,22 @@ function renderUpgrades() {
   }
 }
 
-function buyUpgrade(upgrade) {
+async function buyUpgrade(upgrade) {
+  if (currentUser) {
+    const res = await fetch('/api/buy-upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ upgradeId: upgrade.id }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    applySaveData(data.save);
+    saveState();
+    render();
+    return;
+  }
+
   const price = getUpgradePrice(upgrade);
   const lvl = state.upgradeLevels[upgrade.id];
   if (lvl >= upgrade.maxLevel || state.balance < price) return;
@@ -502,16 +490,7 @@ function spawnFloat(x, y, amount) {
   setTimeout(() => el.remove(), 800);
 }
 
-function tap(e) {
-  const stats = calcStats();
-  if (state.energy < 1) return;
-
-  state.energy -= 1;
-  const earned = stats.perTap;
-  state.balance += earned;
-  state.totalTaps++;
-  state.totalEarned += earned;
-
+function playTapAnim(e, earned) {
   const img = $('#vova');
   img.classList.remove('tap-anim');
   void img.offsetWidth;
@@ -522,10 +501,47 @@ function tap(e) {
   void balanceEl.offsetWidth;
   balanceEl.classList.add('bump');
 
-  const x = e.clientX ?? e.touches?.[0]?.clientX ?? 200;
-  const y = e.clientY ?? e.touches?.[0]?.clientY ?? 300;
+  const x = e?.clientX ?? e?.touches?.[0]?.clientX ?? 200;
+  const y = e?.clientY ?? e?.touches?.[0]?.clientY ?? 300;
   spawnFloat(x, y, earned);
+}
 
+async function tap(e) {
+  if (tapPending) return;
+
+  if (currentUser) {
+    tapPending = true;
+    try {
+      const res = await fetch('/api/tap', { method: 'POST', credentials: 'include' });
+      if (res.status === 403) {
+        const data = await res.json();
+        alert(`Заблокировано: ${data.reason || 'читы'}`);
+        window.location.reload();
+        return;
+      }
+      if (res.status === 429) return;
+      if (!res.ok) return;
+      const data = await res.json();
+      applySaveData(data.save);
+      playTapAnim(e, data.earned);
+      render();
+      saveState();
+    } finally {
+      tapPending = false;
+    }
+    return;
+  }
+
+  const stats = calcStats();
+  if (state.energy < 1) return;
+
+  state.energy -= 1;
+  const earned = stats.perTap;
+  state.balance += earned;
+  state.totalTaps++;
+  state.totalEarned += earned;
+
+  playTapAnim(e, earned);
   render();
   saveState();
 }
@@ -548,6 +564,69 @@ function applyPassive() {
   render();
 }
 
+async function renderLeaderboard() {
+  const list = $('#leaderboard-list');
+  if (!list) return;
+  list.innerHTML = '<p class="lb-loading">Загрузка...</p>';
+  try {
+    const res = await fetch('/api/leaderboard');
+    const { top } = await res.json();
+    list.innerHTML = '';
+    if (!top.length) {
+      list.innerHTML = '<p class="lb-empty">Пока никого нет</p>';
+      return;
+    }
+    for (const p of top) {
+      const card = document.createElement('div');
+      card.className = 'lb-card' + (p.rank === 1 ? ' lb-gold' : '');
+      card.innerHTML = `
+        <span class="lb-rank">#${p.rank}</span>
+        ${p.avatar ? `<img class="lb-avatar" src="${p.avatar}" alt="">` : '<span class="lb-avatar-ph">💪</span>'}
+        <div class="lb-info">
+          <span class="lb-name">${p.name}</span>
+          <span class="lb-level">Ур. ${p.maxLevel}</span>
+        </div>
+        <span class="lb-coins">${formatCoinsFull(p.balance)} 💪</span>
+      `;
+      list.appendChild(card);
+    }
+  } catch (_) {
+    list.innerHTML = '<p class="lb-empty">Ошибка загрузки</p>';
+  }
+}
+
+function initAvatar() {
+  $('#avatar-upload-btn')?.addEventListener('click', () => {
+    $('#avatar-input')?.click();
+  });
+
+  $('#avatar-input')?.addEventListener('change', async (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file || !currentUser) return;
+    if (file.size > 2_000_000) {
+      alert('Макс. 2 МБ');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const res = await fetch('/api/avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ image: reader.result }),
+      });
+      if (!res.ok) {
+        alert('Не удалось загрузить');
+        return;
+      }
+      const data = await res.json();
+      $('#user-avatar').src = data.avatar;
+      renderLeaderboard();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function initTabs() {
   $$('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -555,6 +634,7 @@ function initTabs() {
       $$('.panel').forEach((p) => p.classList.remove('active'));
       tab.classList.add('active');
       $(`#panel-${tab.dataset.tab}`).classList.add('active');
+      if (tab.dataset.tab === 'leaderboard') renderLeaderboard();
     });
   });
 }
@@ -589,22 +669,33 @@ async function boot() {
   initTap();
   initLogin();
   initLogout();
+  initAvatar();
   await checkAuthConfig();
   await initAuth();
   syncMaxLevel();
   initOfflineProgress();
   render();
 
-  setInterval(() => {
-    applyPassive();
-    saveState();
+  setInterval(async () => {
+    if (currentUser) {
+      try {
+        const res = await fetch('/api/tick', { method: 'POST', credentials: 'include' });
+        if (res.ok) {
+          const { save } = await res.json();
+          applySaveData(save);
+          render();
+          saveState();
+        }
+      } catch (_) {}
+    } else {
+      applyPassive();
+      saveState();
+      render();
+    }
   }, 1000);
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      saveState();
-      if (currentUser) syncToServer();
-    }
+    if (document.visibilityState === 'hidden') saveState();
   });
 }
 
