@@ -11,6 +11,20 @@ const port = Number(process.env.PORT) || 3000;
 const baseUrl = (process.env.BASE_URL || `http://localhost:${port}`).replace(/\/$/, '');
 const isProduction = process.env.NODE_ENV === 'production';
 
+const PLACEHOLDER_IDS = new Set([
+  'your-client-id.apps.googleusercontent.com',
+  'your-client-id',
+]);
+
+function isGoogleConfigured() {
+  const id = process.env.GOOGLE_CLIENT_ID?.trim();
+  const secret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  if (!id || !secret) return false;
+  if (PLACEHOLDER_IDS.has(id)) return false;
+  if (secret === 'your-client-secret') return false;
+  return true;
+}
+
 function requireAuth(req, res, next) {
   if (req.isAuthenticated()) return next();
   res.status(401).json({ error: 'Not authenticated' });
@@ -40,7 +54,7 @@ async function start() {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  if (isGoogleConfigured()) {
     passport.use(
       new GoogleStrategy(
         {
@@ -72,9 +86,16 @@ async function start() {
     }
   });
 
+  app.get('/api/config', (_req, res) => {
+    res.json({
+      googleAuth: isGoogleConfigured(),
+      baseUrl,
+    });
+  });
+
   app.get('/auth/google', (req, res, next) => {
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      return res.status(503).send('Google login is not configured on the server.');
+    if (!isGoogleConfigured()) {
+      return res.redirect('/?auth=not_configured');
     }
     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
   });

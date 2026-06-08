@@ -136,15 +136,23 @@ function applySaveData(data) {
 }
 
 function setSyncStatus(status) {
-  const el = $('#sync-status');
-  if (!el) return;
-  el.textContent =
+  const guestEl = $('#sync-status');
+  const userEl = $('#sync-status-user');
+  const text =
     status === 'pending' ? 'Сохранение...' :
     status === 'error' ? 'Ошибка сохранения' :
     status === 'local' ? 'Прогресс только на этом устройстве' :
-    status === 'guest' ? 'Войди через Google — сохраним прогресс' :
+    status === 'guest' ? 'Без входа прогресс только на этом устройстве' :
+    status === 'not_configured' ? 'Вход не настроен — добавь Google OAuth в Railway' :
     'Сохранено в облаке';
-  el.className = 'sync-status' + (status === 'saved' ? ' saved' : status !== 'guest' ? ` ${status}` : '');
+
+  if (currentUser && userEl) {
+    userEl.textContent = text;
+    userEl.className = 'sync-status' + (status === 'saved' ? ' saved' : ` ${status}`);
+  } else if (guestEl) {
+    guestEl.textContent = text;
+    guestEl.className = 'auth-footnote' + (status === 'saved' ? ' saved' : status !== 'guest' ? ` ${status}` : '');
+  }
 }
 
 function saveState() {
@@ -180,20 +188,32 @@ function scheduleCloudSave() {
 }
 
 function showGuestAuth() {
-  $('#header-guest')?.classList.remove('hidden');
-  $('#header-user')?.classList.add('hidden');
+  $('#auth-guest')?.classList.remove('hidden');
+  $('#auth-user')?.classList.add('hidden');
   setSyncStatus('guest');
 }
 
 function showUserAuth(user) {
-  $('#header-guest')?.classList.add('hidden');
-  $('#header-user')?.classList.remove('hidden');
+  $('#auth-guest')?.classList.add('hidden');
+  $('#auth-user')?.classList.remove('hidden');
+  $('#user-name').textContent = user.name || user.email || 'Игрок';
   if (user.avatar) {
     $('#user-avatar').src = user.avatar;
     $('#user-avatar').alt = user.name || '';
-    $('#user-avatar').title = user.name || user.email || '';
   }
   setSyncStatus('saved');
+}
+
+async function checkAuthConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) return;
+    const cfg = await res.json();
+    if (!cfg.googleAuth) {
+      $('#login-btn')?.classList.add('disabled');
+      setSyncStatus('not_configured');
+    }
+  } catch (_) {}
 }
 
 async function loadCloudSave() {
@@ -244,6 +264,9 @@ function handleAuthRedirect() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('auth') === 'failed') {
     alert('Не удалось войти через Google. Попробуй ещё раз.');
+  }
+  if (params.get('auth') === 'not_configured') {
+    alert('Google OAuth не настроен. Замени your-client-id на настоящие ключи в Railway → Variables.');
   }
   if (params.has('auth')) {
     window.history.replaceState({}, '', window.location.pathname);
@@ -473,6 +496,7 @@ async function boot() {
   initTabs();
   initTap();
   initLogout();
+  await checkAuthConfig();
   await initAuth();
   initOfflineProgress();
   render();
