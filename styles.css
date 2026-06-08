@@ -166,25 +166,40 @@ body {
 }
 
 .level-progress-section {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.level-progress-header {
+.level-progress-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.level-progress-top {
   display: flex;
   justify-content: space-between;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  margin-bottom: 4px;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
-#level-progress-amount {
+.level-progress-title {
+  font-size: 0.72rem;
+  font-weight: 800;
   color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.level-progress-target {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--accent);
 }
 
 .level-progress-bar {
-  height: 10px;
-  background: var(--bg-card);
+  height: 12px;
+  background: #0d1117;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
@@ -193,9 +208,27 @@ body {
 .level-progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--gold), var(--accent));
+  background: linear-gradient(90deg, #fbbf24, #f97316);
   border-radius: 10px;
   transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
+}
+
+.level-progress-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+#level-progress-remaining {
+  color: var(--text);
+}
+
+#level-progress-current {
+  color: var(--gold);
 }
 
 .balance-section {
@@ -251,6 +284,7 @@ body {
 
 .energy-section {
   margin-bottom: 8px;
+  padding: 0 2px;
 }
 
 .energy-header {
@@ -260,6 +294,11 @@ body {
   color: var(--text-muted);
   margin-bottom: 4px;
   font-weight: 700;
+}
+
+.energy-title {
+  color: var(--energy);
+  font-weight: 800;
 }
 
 .energy-bar {

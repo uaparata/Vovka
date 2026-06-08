@@ -379,12 +379,16 @@ function render() {
 
   const progressPct = photoLevel.progress * 100;
   $('#level-progress-fill').style.width = progressPct + '%';
+  const earnedInLevel = Math.floor(state.totalEarned - photoLevel.min);
+  const levelRange = photoLevel.max - photoLevel.min;
   if (photoLevel.isMax) {
-    $('#level-progress-label').textContent = 'Максимальный уровень!';
-    $('#level-progress-amount').textContent = '👑';
+    $('#level-progress-target').textContent = 'Макс. уровень 👑';
+    $('#level-progress-remaining').textContent = 'Ты на вершине!';
+    $('#level-progress-current').textContent = `${formatNum(state.totalEarned)} 💪`;
   } else {
-    $('#level-progress-label').textContent = `До уровня ${photoLevel.level + 1}`;
-    $('#level-progress-amount').textContent = `${formatNum(photoLevel.remaining)} 💪`;
+    $('#level-progress-target').textContent = `Уровень ${photoLevel.level + 1}`;
+    $('#level-progress-remaining').textContent = `Осталось ${formatNum(photoLevel.remaining)} 💪`;
+    $('#level-progress-current').textContent = `${formatNum(earnedInLevel)} / ${formatNum(levelRange)}`;
   }
 
   const energyPct = (state.energy / stats.maxEnergy) * 100;
