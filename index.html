@@ -12,22 +12,16 @@
   <style>
     :root {
       --tap-img-size: min(260px, calc(72vw - 28px));
-      --tap-ring-1-size: min(280px, calc(72vw - 12px));
-      --tap-ring-2-size: min(296px, calc(72vw + 4px));
       --tap-section-height: min(280px, calc(72vw + 20px));
     }
     @media (pointer: coarse) {
       :root {
         --tap-img-size: min(190px, calc(58vw - 16px));
-        --tap-ring-1-size: min(208px, calc(58vw - 2px));
-        --tap-ring-2-size: min(222px, calc(58vw + 12px));
         --tap-section-height: min(210px, calc(58vw + 16px));
       }
     }
     .tap-section { height: var(--tap-section-height) !important; min-height: var(--tap-section-height) !important; }
     .vova-img { width: var(--tap-img-size) !important; height: var(--tap-img-size) !important; }
-    .tap-ring-1 { width: var(--tap-ring-1-size) !important; height: var(--tap-ring-1-size) !important; }
-    .tap-ring-2 { width: var(--tap-ring-2-size) !important; height: var(--tap-ring-2-size) !important; }
   </style>
 </head>
 <body>
@@ -92,8 +86,6 @@
 
     <section class="tap-section">
       <div id="tap-zone" class="tap-zone">
-        <div class="tap-ring tap-ring-1"></div>
-        <div class="tap-ring tap-ring-2"></div>
         <img
           id="vova"
           src="assets/level-1.png"

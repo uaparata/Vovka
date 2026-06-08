@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { defaultSave, levelFromBalance } = require('./game-logic');
+const { defaultSave } = require('./game-logic');
 
 let mode = null;
 let pool = null;
@@ -259,7 +259,7 @@ async function upsertSave(userId, save) {
          upgrade_levels = EXCLUDED.upgrade_levels,
          last_passive = EXCLUDED.last_passive,
          last_save = EXCLUDED.last_save,
-         max_level = EXCLUDED.max_level,
+         max_level = GREATEST(saves.max_level, EXCLUDED.max_level),
          peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance),
          updated_at = NOW()`,
       [
@@ -281,7 +281,7 @@ async function upsertSave(userId, save) {
   const idx = fileDb.saves.findIndex((s) => s.user_id === userId);
   if (idx >= 0) {
     const prev = fileDb.saves[idx];
-    payload.max_level = payload.max_level || 1;
+    payload.max_level = Math.max(prev.max_level || 1, payload.max_level || 1);
     payload.peak_balance = Math.max(prev.peak_balance || 0, payload.peak_balance || 0);
     fileDb.saves[idx] = { ...prev, ...payload };
   } else {
@@ -420,6 +420,7 @@ async function getLeaderboard() {
       `SELECT u.id, u.name, u.nickname, u.email, u.custom_avatar, u.avatar, u.avatar_version, u.banned,
               COALESCE(s.balance, 0) AS balance,
               COALESCE(s.total_earned, 0) AS total_earned,
+              COALESCE(s.max_level, 1) AS max_level,
               COALESCE(s.total_taps, 0) AS total_taps
        FROM users u
        LEFT JOIN saves s ON s.user_id = u.id
@@ -432,7 +433,7 @@ async function getLeaderboard() {
       avatar: publicAvatarUrl(r),
       balance: Number(r.balance),
       totalEarned: Number(r.total_earned),
-      maxLevel: levelFromBalance(Number(r.balance)),
+      maxLevel: r.max_level || 1,
       totalTaps: r.total_taps,
       banned: !!r.banned,
     }));
@@ -447,7 +448,7 @@ async function getLeaderboard() {
         avatar: publicAvatarUrl(u),
         balance,
         totalEarned: s?.total_earned || 0,
-        maxLevel: levelFromBalance(balance),
+        maxLevel: s?.max_level || 1,
         totalTaps: s?.total_taps || 0,
         banned: !!u.banned,
       };

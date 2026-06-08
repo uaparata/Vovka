@@ -142,7 +142,10 @@ function loadLocalState(userId = null) {
       if (!raw) continue;
       const saved = JSON.parse(raw);
       const loaded = { ...defaultState(), ...saved };
-      loaded.maxLevel = levelFromBalance(loaded.balance || 0);
+      loaded.maxLevel = Math.max(
+        loaded.maxLevel || 1,
+        levelFromBalance(loaded.balance || 0)
+      );
       return loaded;
     } catch (_) {}
   }
@@ -170,6 +173,7 @@ function mergeSaveStates(...saves) {
     energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1000),
     totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
     totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
+    maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
     peakBalance: Math.max(
       ...valid.map((s) => s.peakBalance || 0),
       ...valid.map((s) => s.balance || 0)
@@ -548,7 +552,8 @@ function levelFromBalance(balance) {
 }
 
 function syncMaxLevel(target = state) {
-  target.maxLevel = levelFromBalance(target.balance || 0);
+  const fromBalance = levelFromBalance(target.balance || 0);
+  target.maxLevel = Math.max(target.maxLevel || 1, fromBalance);
 }
 
 function getPhotoLevelData() {

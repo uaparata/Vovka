@@ -19,8 +19,6 @@
   --border: #30363d;
   --radius: 16px;
   --tap-img-size: min(260px, calc(72vw - 28px));
-  --tap-ring-1-size: min(280px, calc(72vw - 12px));
-  --tap-ring-2-size: min(296px, calc(72vw + 4px));
   --tap-section-height: min(280px, calc(72vw + 20px));
 }
 
@@ -351,33 +349,6 @@ body {
 
 .tap-zone:active {
   transform: scale(0.97);
-}
-
-.tap-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  opacity: 0.15;
-  pointer-events: none;
-}
-
-.tap-ring-1 {
-  width: var(--tap-ring-1-size);
-  height: var(--tap-ring-1-size);
-  opacity: 0.25;
-  animation: pulse-ring 2s ease-in-out infinite;
-}
-
-.tap-ring-2 {
-  width: var(--tap-ring-2-size);
-  height: var(--tap-ring-2-size);
-  opacity: 0.18;
-  animation: pulse-ring 2s ease-in-out infinite 0.5s;
-}
-
-@keyframes pulse-ring {
-  0%, 100% { transform: scale(1); opacity: 0.15; }
-  50% { transform: scale(1.05); opacity: 0.25; }
 }
 
 .vova-img {
@@ -894,8 +865,6 @@ body {
 @media (max-height: 700px) {
   :root {
     --tap-img-size: min(210px, calc(64vw - 24px));
-    --tap-ring-1-size: min(228px, calc(64vw - 10px));
-    --tap-ring-2-size: min(242px, calc(64vw + 4px));
     --tap-section-height: min(230px, calc(64vw + 16px));
   }
 }
@@ -904,8 +873,6 @@ body {
 @media (pointer: coarse) {
   :root {
     --tap-img-size: min(190px, calc(58vw - 16px));
-    --tap-ring-1-size: min(208px, calc(58vw - 2px));
-    --tap-ring-2-size: min(222px, calc(58vw + 12px));
     --tap-section-height: min(210px, calc(58vw + 16px));
   }
 
