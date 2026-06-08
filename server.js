@@ -411,6 +411,8 @@ async function start() {
     sendHtml(res, 'index.html');
   });
 
+  const userCount = await db.getRegisteredUserCount();
+
   app.listen(port, '0.0.0.0', () => {
     console.log(`Fauck Zini running on ${baseUrl}`);
     console.log(`Asset version: ${ASSET_VERSION}`);
@@ -420,7 +422,6 @@ async function start() {
         ? 'Sessions: custom SESSION_SECRET'
         : 'Sessions: stable secret from DATABASE_URL'
     );
-    const userCount = await db.getRegisteredUserCount();
     console.log(`Registered users in database: ${userCount}`);
   });
 }
