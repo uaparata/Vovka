@@ -430,21 +430,6 @@ body {
   100% { transform: scale(1); }
 }
 
-.tap-hint {
-  margin-top: 8px;
-  font-size: 1rem;
-  color: var(--accent);
-  font-weight: 900;
-  letter-spacing: 0.4px;
-  text-shadow: 0 0 12px rgba(249, 115, 22, 0.5);
-  animation: hint-blink 2s ease-in-out infinite;
-}
-
-@keyframes hint-blink {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
 .float-container {
   position: absolute;
   inset: 0;
@@ -932,11 +917,6 @@ body {
 
   .tap-section {
     margin-bottom: 2px;
-  }
-
-  .tap-hint {
-    margin-top: 6px;
-    font-size: 0.95rem;
   }
 
 }
