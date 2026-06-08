@@ -141,9 +141,10 @@ function setSyncStatus(status) {
   el.textContent =
     status === 'pending' ? 'Сохранение...' :
     status === 'error' ? 'Ошибка сохранения' :
-    status === 'local' ? 'Только на устройстве' :
+    status === 'local' ? 'Прогресс только на этом устройстве' :
+    status === 'guest' ? 'Войди через Google — сохраним прогресс' :
     'Сохранено в облаке';
-  el.className = 'sync-status' + (status !== 'saved' ? ` ${status}` : '');
+  el.className = 'sync-status' + (status === 'saved' ? ' saved' : status !== 'guest' ? ` ${status}` : '');
 }
 
 function saveState() {
@@ -179,18 +180,18 @@ function scheduleCloudSave() {
 }
 
 function showGuestAuth() {
-  $('#auth-guest')?.classList.remove('hidden');
-  $('#auth-user')?.classList.add('hidden');
-  setSyncStatus('local');
+  $('#header-guest')?.classList.remove('hidden');
+  $('#header-user')?.classList.add('hidden');
+  setSyncStatus('guest');
 }
 
 function showUserAuth(user) {
-  $('#auth-guest')?.classList.add('hidden');
-  $('#auth-user')?.classList.remove('hidden');
-  $('#user-name').textContent = user.name || user.email || 'Игрок';
+  $('#header-guest')?.classList.add('hidden');
+  $('#header-user')?.classList.remove('hidden');
   if (user.avatar) {
     $('#user-avatar').src = user.avatar;
     $('#user-avatar').alt = user.name || '';
+    $('#user-avatar').title = user.name || user.email || '';
   }
   setSyncStatus('saved');
 }
