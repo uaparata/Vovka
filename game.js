@@ -244,26 +244,56 @@ function showGuestAuth() {
   $('#profile-section')?.classList.add('hidden');
 }
 
-function setUserAvatarEl(src) {
+function setUserAvatarEl(src, bustCache = false) {
   const img = $('#user-avatar');
   if (!img || !src) return;
-  img.src = src;
+  if (bustCache || src.includes('/api/users/')) {
+    const join = src.includes('?') ? '&' : '?';
+    img.src = `${src}${join}_t=${Date.now()}`;
+  } else {
+    img.src = src;
+  }
   img.alt = '';
+}
+
+async function refreshMyAvatar() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch('/api/me', { credentials: 'include' });
+    if (!res.ok) return;
+    const user = await res.json();
+    if (user.avatar) {
+      currentUser = { ...currentUser, ...user };
+      setUserAvatarEl(user.avatar, true);
+      rememberUser(currentUser);
+      imgAltFix(currentUser);
+    }
+  } catch (_) {}
 }
 
 function showUserAuth(user) {
   $('#header-guest')?.classList.add('hidden');
   $('#header-user')?.classList.remove('hidden');
   $('#profile-section')?.classList.remove('hidden');
-  const avatar = user.avatar || getCachedAvatar(user.id);
-  if (avatar) {
-    setUserAvatarEl(avatar);
-    imgAltFix(user);
-    rememberUser({ ...user, avatar: user.avatar || avatar });
+
+  let avatar = user.avatar;
+  if (user.hasCustomAvatar && avatar) {
+    localStorage.setItem(`fauckzini_avatar_u_${user.id}`, avatar);
+  } else if (!avatar) {
+    avatar = getCachedAvatar(user.id);
   }
+
+  if (avatar) {
+    setUserAvatarEl(avatar, !!(user.hasCustomAvatar || avatar.includes('/api/users/')));
+    imgAltFix(user);
+    rememberUser({ ...user, avatar });
+  }
+
   $('#user-chip').title = user.name || user.email || 'Аккаунт';
   if (user.isAdmin) $('#admin-link')?.classList.remove('hidden');
   else $('#admin-link')?.classList.add('hidden');
+
+  refreshMyAvatar();
 }
 
 function imgAltFix(user) {
@@ -968,9 +998,10 @@ function initAvatar() {
       }
       const data = await res.json();
       if (data.avatar) {
-        setUserAvatarEl(data.avatar);
         currentUser = { ...currentUser, avatar: data.avatar, hasCustomAvatar: true };
+        setUserAvatarEl(data.avatar, true);
         rememberUser(currentUser);
+        await refreshMyAvatar();
       }
       renderLeaderboard();
     };
