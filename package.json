@@ -1,0 +1,16 @@
+{
+  "name": "fauck-zini",
+  "version": "1.0.0",
+  "description": "Тапалка про Вову Зинченко в стиле Hamster Kombat",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "serve-handler": "^6.1.6"
+  }
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0d1117">
+  <title>Fauck Zini — Тапалка Вовы</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="level-badge">
+        <span class="level-label">Уровень</span>
+        <span id="level" class="level-value">1</span>
+      </div>
+      <h1 class="title">Fauck Zini</h1>
+      <div class="rank-badge" id="rank">Новичок</div>
+    </header>
+
+    <section class="balance-section">
+      <div class="balance-card">
+        <span class="balance-label">Зинкоины</span>
+        <div class="balance-row">
+          <span class="coin-icon">💪</span>
+          <span id="balance" class="balance-value">0</span>
+        </div>
+        <div class="income-row">
+          <span id="per-tap">+1 за тап</span>
+          <span class="dot">·</span>
+          <span id="per-hour">+0/час</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="energy-section">
+      <div class="energy-header">
+        <span>Энергия</span>
+        <span id="energy-text">1000 / 1000</span>
+      </div>
+      <div class="energy-bar">
+        <div id="energy-fill" class="energy-fill"></div>
+      </div>
+    </section>
+
+    <section class="tap-section">
+      <div id="tap-zone" class="tap-zone">
+        <div class="tap-ring tap-ring-1"></div>
+        <div class="tap-ring tap-ring-2"></div>
+        <img
+          id="vova"
+          src="assets/vova.png"
+          alt="Вова Зинченко"
+          class="vova-img"
+          draggable="false"
+        >
+        <p class="tap-hint">Тапай Вову!</p>
+      </div>
+      <div id="float-container" class="float-container"></div>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="upgrades">Улучшения</button>
+      <button class="tab" data-tab="stats">Статистика</button>
+    </nav>
+
+    <section id="panel-upgrades" class="panel active">
+      <div id="upgrades-list" class="upgrades-list"></div>
+    </section>
+
+    <section id="panel-stats" class="panel">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-label">Всего тапов</span>
+          <span id="stat-taps" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Всего заработано</span>
+          <span id="stat-earned" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Улучшений куплено</span>
+          <span id="stat-upgrades" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Ранг</span>
+          <span id="stat-rank" class="stat-value">Новичок</span>
+        </div>
+      </div>
+      <p class="footer-note">Сделано для Вовы Зинченко 💪</p>
+    </section>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
