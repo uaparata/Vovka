@@ -382,16 +382,21 @@ function render() {
   lastPhotoLevel = photoLevel.level;
 
   const progressPct = photoLevel.progress * 100;
+  const earnedTotal = Math.floor(state.totalEarned);
   $('#level-progress-fill').style.width = progressPct + '%';
+
   if (photoLevel.isMax) {
-    $('#level-progress-target').textContent = 'Максимальный уровень 👑';
-    $('#level-progress-bar-label').textContent = `${formatCoinsFull(state.totalEarned)} монет`;
+    $('#level-progress-current').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name} 👑`;
+    $('#level-progress-next').textContent = 'Максимальный уровень достигнут';
+    $('#level-progress-bar-label').textContent = `${formatCoinsFull(earnedTotal)} монет`;
     $('#level-progress-remaining').textContent = 'Ты на вершине!';
   } else {
-    $('#level-progress-target').textContent = `До уровня ${photoLevel.level + 1}`;
-    $('#level-progress-bar-label').textContent = `${formatCoinsFull(photoLevel.max)} монет`;
+    $('#level-progress-current').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name}`;
+    $('#level-progress-next').textContent = `Следующий: уровень ${photoLevel.level + 1}`;
+    $('#level-progress-bar-label').textContent =
+      `${formatCoinsFull(earnedTotal)} / ${formatCoinsFull(photoLevel.max)}`;
     $('#level-progress-remaining').textContent =
-      `Осталось ${formatCoinsFull(photoLevel.remaining)} 💪`;
+      `До уровня ${photoLevel.level + 1} осталось ${formatCoinsFull(photoLevel.remaining)} 💪`;
   }
 
   const energyPct = (state.energy / stats.maxEnergy) * 100;
