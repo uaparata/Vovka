@@ -1,15 +1,15 @@
 const STORAGE_KEY = 'fauckzini_save';
 
-const RANKS = [
-  { level: 1, name: 'Новичок' },
-  { level: 5, name: 'Качок' },
-  { level: 10, name: 'Качала' },
-  { level: 20, name: 'Монстр' },
-  { level: 35, name: 'Зинченко' },
-  { level: 50, name: 'Легенда' },
-  { level: 75, name: 'Бог бицухи' },
-  { level: 100, name: 'Fauck Zini' },
+const PHOTO_LEVELS = [
+  { level: 1, min: 0, max: 10_000, image: 'assets/level-1.png', name: 'Новичок' },
+  { level: 2, min: 10_000, max: 100_000, image: 'assets/level-2.png', name: 'Уличный' },
+  { level: 3, min: 100_000, max: 500_000, image: 'assets/level-3.png', name: 'Стиляга' },
+  { level: 4, min: 500_000, max: 1_000_000, image: 'assets/level-4.png', name: 'Босс' },
+  { level: 5, min: 1_000_000, max: 5_000_000, image: 'assets/level-5.png', name: 'Легенда' },
 ];
+
+let lastPhotoLevel = 0;
+let currentPhotoSrc = '';
 
 const UPGRADES = [
   {
@@ -307,17 +307,41 @@ function calcStats() {
   };
 }
 
+function getPhotoLevelData() {
+  const earned = state.totalEarned;
+  let idx = 0;
+  for (let i = PHOTO_LEVELS.length - 1; i >= 0; i--) {
+    if (earned >= PHOTO_LEVELS[i].min) {
+      idx = i;
+      break;
+    }
+  }
+  const current = PHOTO_LEVELS[idx];
+  const isMax = idx === PHOTO_LEVELS.length - 1 && earned >= current.max;
+  const next = PHOTO_LEVELS[idx + 1] || null;
+  const range = current.max - current.min;
+  const progress = isMax ? 1 : Math.min(1, Math.max(0, (earned - current.min) / range));
+  const remaining = isMax ? 0 : current.max - earned;
+
+  return {
+    level: current.level,
+    name: current.name,
+    image: current.image,
+    min: current.min,
+    max: current.max,
+    progress,
+    remaining,
+    isMax,
+    nextLevel: next?.level ?? null,
+  };
+}
+
 function getLevel() {
-  return Math.floor(Math.pow(state.totalEarned / 1000, 0.55)) + 1;
+  return getPhotoLevelData().level;
 }
 
 function getRank() {
-  const lvl = getLevel();
-  let rank = RANKS[0].name;
-  for (const r of RANKS) {
-    if (lvl >= r.level) rank = r.name;
-  }
-  return rank;
+  return getPhotoLevelData().name;
 }
 
 function formatNum(n) {
@@ -338,8 +362,30 @@ function render() {
   $('#balance').textContent = formatNum(state.balance);
   $('#per-tap').textContent = `+${formatNum(stats.perTap)} за тап`;
   $('#per-hour').textContent = `+${formatNum(stats.perHour)}/час`;
-  $('#level').textContent = getLevel();
-  $('#rank').textContent = getRank();
+  const photoLevel = getPhotoLevelData();
+  $('#level').textContent = photoLevel.level;
+  $('#rank').textContent = photoLevel.name;
+
+  const vovaImg = $('#vova');
+  if (vovaImg && currentPhotoSrc !== photoLevel.image) {
+    vovaImg.src = photoLevel.image;
+    currentPhotoSrc = photoLevel.image;
+  }
+  if (photoLevel.level > lastPhotoLevel && lastPhotoLevel > 0) {
+    vovaImg?.classList.add('level-up-anim');
+    setTimeout(() => vovaImg?.classList.remove('level-up-anim'), 600);
+  }
+  lastPhotoLevel = photoLevel.level;
+
+  const progressPct = photoLevel.progress * 100;
+  $('#level-progress-fill').style.width = progressPct + '%';
+  if (photoLevel.isMax) {
+    $('#level-progress-label').textContent = 'Максимальный уровень!';
+    $('#level-progress-amount').textContent = '👑';
+  } else {
+    $('#level-progress-label').textContent = `До уровня ${photoLevel.level + 1}`;
+    $('#level-progress-amount').textContent = `${formatNum(photoLevel.remaining)} 💪`;
+  }
 
   const energyPct = (state.energy / stats.maxEnergy) * 100;
   $('#energy-fill').style.width = energyPct + '%';
@@ -349,7 +395,7 @@ function render() {
   $('#stat-taps').textContent = formatNum(state.totalTaps);
   $('#stat-earned').textContent = formatNum(state.totalEarned);
   $('#stat-upgrades').textContent = Object.values(state.upgradeLevels).reduce((a, b) => a + b, 0);
-  $('#stat-rank').textContent = getRank();
+  $('#stat-rank').textContent = `${photoLevel.level} — ${photoLevel.name}`;
 
   renderUpgrades();
 }

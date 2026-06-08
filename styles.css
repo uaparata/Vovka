@@ -165,6 +165,39 @@ body {
   white-space: nowrap;
 }
 
+.level-progress-section {
+  margin-bottom: 8px;
+}
+
+.level-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+#level-progress-amount {
+  color: var(--gold);
+}
+
+.level-progress-bar {
+  height: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.level-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--gold), var(--accent));
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
 .balance-section {
   margin-bottom: 10px;
 }
@@ -306,6 +339,16 @@ body {
 
 .vova-img.tap-anim {
   animation: tap-bounce 0.15s ease;
+}
+
+.vova-img.level-up-anim {
+  animation: level-up 0.6s ease;
+}
+
+@keyframes level-up {
+  0% { transform: scale(1); box-shadow: 0 0 30px var(--accent-glow); }
+  50% { transform: scale(1.12); box-shadow: 0 0 50px var(--gold); }
+  100% { transform: scale(1); box-shadow: 0 0 30px var(--accent-glow); }
 }
 
 @keyframes tap-bounce {
