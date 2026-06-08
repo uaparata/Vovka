@@ -159,10 +159,10 @@ async function start() {
   app.get('/api/leaderboard', async (req, res) => {
     try {
       const players = await db.getLeaderboard();
-      const myId = req.user?.id;
+      const myId = req.user?.id != null ? Number(req.user.id) : null;
       let myRank = null;
       const enriched = players.map((p) => {
-        const isMe = !!(myId && p.id === myId);
+        const isMe = !!(myId && Number(p.id) === myId);
         if (isMe) myRank = p.rank;
         return { ...p, isMe };
       });

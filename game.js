@@ -1,8 +1,22 @@
 const STORAGE_GUEST = 'fauckzini_save_guest';
 const STORAGE_LEGACY = 'fauckzini_save';
+const LAST_USER_KEY = 'fauckzini_last_user_id';
 
 function storageKey(userId) {
   return userId ? `fauckzini_save_u_${userId}` : STORAGE_GUEST;
+}
+
+function rememberUser(user) {
+  if (user?.id != null) {
+    localStorage.setItem(LAST_USER_KEY, String(user.id));
+  }
+}
+
+function getLastUserId() {
+  const raw = localStorage.getItem(LAST_USER_KEY);
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isFinite(id) ? id : null;
 }
 
 const PHOTO_LEVELS = [
@@ -105,6 +119,7 @@ let state = defaultState();
 let currentUser = null;
 let isAdmin = false;
 let tapPending = false;
+let leaderboardPollTimer = null;
 
 function loadLocalState(userId = null) {
   const keys = userId
@@ -281,31 +296,51 @@ async function loadCloudSave() {
   const userId = currentUser.id;
   const guestLocal = loadLocalState(null);
   const userLocal = loadLocalState(userId);
+  const bestLocal = mergeSaveStates(guestLocal, userLocal);
 
   try {
     const res = await fetch('/api/save', { credentials: 'include' });
+    if (res.status === 401) {
+      await handleSessionLost();
+      return;
+    }
     if (!res.ok) {
-      state = mergeSaveStates(guestLocal, userLocal);
-      applySaveData(state);
+      applySaveData(bestLocal);
       saveState();
       return;
     }
 
     const data = await res.json();
     const cloud = data.save || null;
-    const merged = mergeSaveStates(guestLocal, userLocal, cloud);
-    applySaveData(merged);
-    saveState();
 
-    if (saveNeedsSync(cloud, merged)) {
+    if (!cloud || saveNeedsSync(cloud, bestLocal)) {
+      const merged = mergeSaveStates(guestLocal, userLocal, cloud);
+      applySaveData(merged);
+      saveState();
       await syncSaveToServer();
+      saveState();
+    } else {
+      applySaveData(cloud);
       saveState();
     }
   } catch (_) {
-    state = mergeSaveStates(guestLocal, userLocal);
-    applySaveData(state);
+    applySaveData(bestLocal);
     saveState();
   }
+}
+
+async function handleSessionLost() {
+  const lastId = getLastUserId();
+  currentUser = null;
+  isAdmin = false;
+  if (lastId) {
+    applySaveData(loadLocalState(lastId));
+    saveState();
+  } else {
+    applySaveData(loadLocalState(null));
+  }
+  showGuestAuth();
+  render();
 }
 
 async function fetchMe(retries = 3) {
@@ -326,6 +361,7 @@ async function initAuth() {
   const user = await fetchMe();
   if (user) {
     currentUser = user;
+    rememberUser(user);
     if (currentUser.banned) {
       alert('Аккаунт заблокирован');
       await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
@@ -339,8 +375,15 @@ async function initAuth() {
     await loadCloudSave();
     return;
   }
+
+  const lastId = getLastUserId();
   currentUser = null;
-  state = loadLocalState(null);
+  isAdmin = false;
+  if (lastId) {
+    applySaveData(loadLocalState(lastId));
+  } else {
+    applySaveData(loadLocalState(null));
+  }
   showGuestAuth();
 }
 
@@ -568,6 +611,7 @@ async function buyUpgrade(upgrade) {
     applySaveData(data.save);
     saveState();
     render();
+    refreshLeaderboardIfActive();
     return;
   }
 
@@ -623,12 +667,17 @@ async function tap(e) {
         return;
       }
       if (res.status === 429) return;
+      if (res.status === 401) {
+        await handleSessionLost();
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       applySaveData(data.save);
       playTapAnim(e, data.earned);
       render();
       saveState();
+      refreshLeaderboardIfActive();
     } finally {
       tapPending = false;
     }
@@ -667,113 +716,145 @@ function applyPassive() {
   render();
 }
 
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function isLeaderboardActive() {
+  return $('#panel-leaderboard')?.classList.contains('active');
 }
 
-async function renderLeaderboard() {
-  const list = $('#leaderboard-list');
-  if (!list) return;
-  list.innerHTML = '<p class="lb-loading">Загрузка...</p>';
+function isMePlayer(p) {
+  if (!currentUser) return false;
+  return Number(p.id) === Number(currentUser.id) || !!p.isMe;
+}
 
+function paintLeaderboard(players, total, myRank) {
+  const list = $('#leaderboard-list');
   const totalEl = $('#lb-total');
   const myRankEl = $('#lb-my-rank');
   const findBtn = $('#lb-find-me');
+  if (!list) return;
+
+  if (totalEl) {
+    totalEl.textContent = `Игроков: ${total ?? players.length}`;
+  }
+
+  list.innerHTML = '';
+  if (!players.length) {
+    if (totalEl) totalEl.textContent = 'Игроков: 0';
+    findBtn?.classList.add('hidden');
+    myRankEl?.classList.add('hidden');
+    list.innerHTML = '<p class="lb-empty">Пока никого нет — войди через Google!</p>';
+    return;
+  }
+
+  let hasMe = false;
+  let resolvedMyRank = myRank;
+
+  for (const p of players) {
+    const me = isMePlayer(p);
+    if (me) {
+      hasMe = true;
+      resolvedMyRank = resolvedMyRank || p.rank;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'lb-card';
+    if (p.rank === 1) card.classList.add('lb-gold');
+    if (me) {
+      card.classList.add('lb-me');
+      card.id = 'lb-me';
+    }
+
+    const rank = document.createElement('span');
+    rank.className = 'lb-rank';
+    rank.textContent = `#${p.rank}`;
+
+    if (p.avatar) {
+      const img = document.createElement('img');
+      img.className = 'lb-avatar';
+      img.src = p.avatar;
+      img.alt = '';
+      card.appendChild(rank);
+      card.appendChild(img);
+    } else {
+      const ph = document.createElement('span');
+      ph.className = 'lb-avatar-ph';
+      ph.textContent = '💪';
+      card.appendChild(rank);
+      card.appendChild(ph);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'lb-info';
+    const name = document.createElement('span');
+    name.className = 'lb-name';
+    name.textContent = p.name || 'Игрок';
+    if (me) {
+      const badge = document.createElement('span');
+      badge.className = 'lb-you-badge';
+      badge.textContent = 'ТЫ';
+      name.appendChild(badge);
+    }
+    const level = document.createElement('span');
+    level.className = 'lb-level';
+    level.textContent = `Ур. ${p.maxLevel}`;
+    info.appendChild(name);
+    info.appendChild(level);
+
+    const coins = document.createElement('span');
+    coins.className = 'lb-coins';
+    coins.textContent = `${formatCoinsFull(p.balance)} 💪`;
+
+    card.appendChild(info);
+    card.appendChild(coins);
+    list.appendChild(card);
+  }
+
+  if (hasMe && resolvedMyRank) {
+    myRankEl?.classList.remove('hidden');
+    if (myRankEl) {
+      myRankEl.textContent = `Твоё место: #${resolvedMyRank} · ${formatCoinsFull(state.balance)} 💪`;
+    }
+    findBtn?.classList.remove('hidden');
+  } else {
+    myRankEl?.classList.add('hidden');
+    findBtn?.classList.add('hidden');
+    if (!currentUser && myRankEl) {
+      myRankEl.classList.remove('hidden');
+      myRankEl.textContent = 'Войди через Google — попадёшь в общий рейтинг';
+    }
+  }
+}
+
+async function renderLeaderboard(silent = false) {
+  const list = $('#leaderboard-list');
+  if (!list) return;
+  if (!silent) list.innerHTML = '<p class="lb-loading">Загрузка...</p>';
 
   try {
     const res = await fetch('/api/leaderboard', { credentials: 'include' });
+    if (!res.ok) throw new Error('bad status');
     const data = await res.json();
     const players = data.players || data.top || [];
-
-    if (totalEl) {
-      totalEl.textContent = `Игроков: ${data.total ?? players.length}`;
-    }
-
-    list.innerHTML = '';
-    if (!players.length) {
-      if (totalEl) totalEl.textContent = 'Игроков: 0';
-      findBtn?.classList.add('hidden');
-      myRankEl?.classList.add('hidden');
-      list.innerHTML = '<p class="lb-empty">Пока никого нет — войди через Google!</p>';
-      return;
-    }
-
-    let hasMe = false;
-    for (const p of players) {
-      const card = document.createElement('div');
-      card.className = 'lb-card';
-      if (p.rank === 1) card.classList.add('lb-gold');
-      if (p.isMe) {
-        card.classList.add('lb-me');
-        card.id = 'lb-me';
-        hasMe = true;
-      }
-
-      const rank = document.createElement('span');
-      rank.className = 'lb-rank';
-      rank.textContent = `#${p.rank}`;
-
-      if (p.avatar) {
-        const img = document.createElement('img');
-        img.className = 'lb-avatar';
-        img.src = p.avatar;
-        img.alt = '';
-        card.appendChild(rank);
-        card.appendChild(img);
-      } else {
-        const ph = document.createElement('span');
-        ph.className = 'lb-avatar-ph';
-        ph.textContent = '💪';
-        card.appendChild(rank);
-        card.appendChild(ph);
-      }
-
-      const info = document.createElement('div');
-      info.className = 'lb-info';
-      const name = document.createElement('span');
-      name.className = 'lb-name';
-      name.textContent = p.name || 'Игрок';
-      if (p.isMe) {
-        const badge = document.createElement('span');
-        badge.className = 'lb-you-badge';
-        badge.textContent = 'ТЫ';
-        name.appendChild(badge);
-      }
-      const level = document.createElement('span');
-      level.className = 'lb-level';
-      level.textContent = `Ур. ${p.maxLevel}`;
-      info.appendChild(name);
-      info.appendChild(level);
-
-      const coins = document.createElement('span');
-      coins.className = 'lb-coins';
-      coins.textContent = `${formatCoinsFull(p.balance)} 💪`;
-
-      card.appendChild(info);
-      card.appendChild(coins);
-      list.appendChild(card);
-    }
-
-    if (hasMe && data.myRank) {
-      myRankEl?.classList.remove('hidden');
-      if (myRankEl) {
-        myRankEl.textContent = `Твоё место: #${data.myRank} · ${formatCoinsFull(state.balance)} 💪`;
-      }
-      findBtn?.classList.remove('hidden');
-    } else {
-      myRankEl?.classList.add('hidden');
-      findBtn?.classList.add('hidden');
-      if (!currentUser && myRankEl) {
-        myRankEl.classList.remove('hidden');
-        myRankEl.textContent = 'Войди через Google — попадёшь в общий рейтинг';
-      }
-    }
+    paintLeaderboard(players, data.total ?? players.length, data.myRank);
   } catch (_) {
-    list.innerHTML = '<p class="lb-empty">Ошибка загрузки</p>';
+    if (!silent) list.innerHTML = '<p class="lb-empty">Ошибка загрузки</p>';
+  }
+}
+
+function refreshLeaderboardIfActive() {
+  if (isLeaderboardActive()) renderLeaderboard(true);
+}
+
+function startLeaderboardLive() {
+  stopLeaderboardLive();
+  leaderboardPollTimer = setInterval(() => {
+    if (isLeaderboardActive()) renderLeaderboard(true);
+  }, 4000);
+}
+
+function stopLeaderboardLive() {
+  if (leaderboardPollTimer) {
+    clearInterval(leaderboardPollTimer);
+    leaderboardPollTimer = null;
   }
 }
 
@@ -786,6 +867,7 @@ function initLeaderboard() {
       setTimeout(() => me.classList.remove('lb-gold'), 1200);
     }
   });
+  startLeaderboardLive();
 }
 
 function initAvatar() {
@@ -827,7 +909,10 @@ function initTabs() {
       $$('.panel').forEach((p) => p.classList.remove('active'));
       tab.classList.add('active');
       $(`#panel-${tab.dataset.tab}`).classList.add('active');
-      if (tab.dataset.tab === 'leaderboard') renderLeaderboard();
+      if (tab.dataset.tab === 'leaderboard') {
+        renderLeaderboard();
+        startLeaderboardLive();
+      }
     });
   });
 }
@@ -841,6 +926,8 @@ function initTap() {
 }
 
 function initOfflineProgress() {
+  if (currentUser) return;
+
   const now = Date.now();
   const offline = (now - (state.lastSave || now)) / 1000;
   if (offline > 5) {
@@ -878,11 +965,16 @@ async function boot() {
     if (currentUser) {
       try {
         const res = await fetch('/api/tick', { method: 'POST', credentials: 'include' });
+        if (res.status === 401) {
+          await handleSessionLost();
+          return;
+        }
         if (res.ok) {
           const { save } = await res.json();
           applySaveData(save);
           render();
           saveState();
+          refreshLeaderboardIfActive();
         }
       } catch (_) {}
     } else {
@@ -893,7 +985,23 @@ async function boot() {
   }, 1000);
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveState();
+    if (document.visibilityState === 'hidden') {
+      saveState();
+      if (currentUser) syncSaveToServer();
+    }
+    if (document.visibilityState === 'visible' && currentUser) {
+      fetchMe(2).then((user) => {
+        if (user) {
+          currentUser = user;
+          rememberUser(user);
+          showUserAuth(user);
+          loadCloudSave().then(() => {
+            render();
+            refreshLeaderboardIfActive();
+          });
+        }
+      });
+    }
   });
 }
 
