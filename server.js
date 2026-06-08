@@ -146,6 +146,15 @@ async function start() {
     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
   });
 
+  app.get('/auth/google/silent', (req, res, next) => {
+    if (!isGoogleConfigured()) return res.redirect('/');
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      prompt: 'none',
+      failureRedirect: '/?auth=need_login',
+    })(req, res, next);
+  });
+
   app.get(
     '/auth/google/callback',
     passport.authenticate('google', { failureRedirect: '/?auth=failed' }),
@@ -173,6 +182,7 @@ async function start() {
       name: req.user.name,
       email: req.user.email,
       avatar: req.user.avatar,
+      hasCustomAvatar: !!req.user.custom_avatar,
       banned: req.user.banned,
       isAdmin: isAdmin(req.user),
     });
@@ -186,7 +196,8 @@ async function start() {
       if (!payload) return res.status(404).end();
       if (payload.type === 'redirect') return res.redirect(payload.url);
       res.set('Content-Type', payload.mime);
-      res.set('Cache-Control', 'public, max-age=604800, immutable');
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.set('Vary', 'Accept');
       res.send(payload.data);
     } catch (err) {
       console.error(err);
@@ -308,8 +319,8 @@ async function start() {
         return res.status(400).json({ error: 'Image too large (max 2MB)' });
       }
       await db.setCustomAvatar(req.user.id, image);
-      const v = Date.now();
-      res.json({ avatar: `/api/users/${req.user.id}/avatar?v=${v}` });
+      const user = await db.getUserById(req.user.id);
+      res.json({ avatar: user.avatar, hasCustomAvatar: true });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Avatar upload failed' });
@@ -391,6 +402,8 @@ async function start() {
         ? 'Sessions: custom SESSION_SECRET'
         : 'Sessions: stable secret from DATABASE_URL'
     );
+    const userCount = await db.getRegisteredUserCount();
+    console.log(`Registered users in database: ${userCount}`);
   });
 }
 

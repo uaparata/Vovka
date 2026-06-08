@@ -1,6 +1,7 @@
 const STORAGE_GUEST = 'fauckzini_save_guest';
 const STORAGE_LEGACY = 'fauckzini_save';
 const LAST_USER_KEY = 'fauckzini_last_user_id';
+const SILENT_AUTH_TRIED = 'fauckzini_silent_auth_tried';
 
 function storageKey(userId) {
   return userId ? `fauckzini_save_u_${userId}` : STORAGE_GUEST;
@@ -243,19 +244,31 @@ function showGuestAuth() {
   $('#profile-section')?.classList.add('hidden');
 }
 
+function setUserAvatarEl(src) {
+  const img = $('#user-avatar');
+  if (!img || !src) return;
+  img.src = src;
+  img.alt = '';
+}
+
 function showUserAuth(user) {
   $('#header-guest')?.classList.add('hidden');
   $('#header-user')?.classList.remove('hidden');
   $('#profile-section')?.classList.remove('hidden');
   const avatar = user.avatar || getCachedAvatar(user.id);
   if (avatar) {
-    $('#user-avatar').src = avatar;
-    $('#user-avatar').alt = user.name || '';
-    rememberUser({ ...user, avatar });
+    setUserAvatarEl(avatar);
+    imgAltFix(user);
+    rememberUser({ ...user, avatar: user.avatar || avatar });
   }
   $('#user-chip').title = user.name || user.email || 'Аккаунт';
   if (user.isAdmin) $('#admin-link')?.classList.remove('hidden');
   else $('#admin-link')?.classList.add('hidden');
+}
+
+function imgAltFix(user) {
+  const img = $('#user-avatar');
+  if (img) img.alt = user.name || '';
 }
 
 async function checkAuthConfig() {
@@ -405,6 +418,7 @@ async function recoverSession() {
 async function initAuth() {
   const user = await fetchMe(15);
   if (user) {
+    sessionStorage.removeItem(SILENT_AUTH_TRIED);
     currentUser = user;
     rememberUser(user);
     if (currentUser.banned) {
@@ -422,14 +436,23 @@ async function initAuth() {
   }
 
   const lastId = getLastUserId();
-  currentUser = null;
-  isAdmin = false;
   if (lastId) {
     applySaveData(loadLocalState(lastId));
+    saveState();
   } else {
     applySaveData(loadLocalState(null));
   }
+
+  if (lastId && !sessionStorage.getItem(SILENT_AUTH_TRIED)) {
+    sessionStorage.setItem(SILENT_AUTH_TRIED, '1');
+    window.location.href = '/auth/google/silent';
+    return;
+  }
+
+  currentUser = null;
+  isAdmin = false;
   showGuestAuth();
+  render();
 }
 
 function initLogout() {
@@ -453,6 +476,9 @@ function handleAuthRedirect() {
   }
   if (params.get('auth') === 'banned') {
     alert('Аккаунт заблокирован администратором.');
+  }
+  if (params.get('auth') === 'success') {
+    sessionStorage.removeItem(SILENT_AUTH_TRIED);
   }
   if (params.has('auth')) {
     window.history.replaceState({}, '', window.location.pathname);
@@ -942,8 +968,9 @@ function initAvatar() {
       }
       const data = await res.json();
       if (data.avatar) {
-        $('#user-avatar').src = data.avatar;
-        rememberUser({ ...currentUser, avatar: data.avatar });
+        setUserAvatarEl(data.avatar);
+        currentUser = { ...currentUser, avatar: data.avatar, hasCustomAvatar: true };
+        rememberUser(currentUser);
       }
       renderLeaderboard();
     };

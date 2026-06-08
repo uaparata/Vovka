@@ -71,6 +71,7 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspicious_count INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS max_level INTEGER DEFAULT 1`);
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS peak_balance DOUBLE PRECISION DEFAULT 0`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_version INTEGER DEFAULT 0`);
     await pool.query(`
       INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
       SELECT u.id, 0, 1000, 0, 0, '{}', 0, 0, 1, 0
@@ -109,7 +110,10 @@ function rowToSave(row) {
 
 function publicAvatarUrl(row) {
   if (!row) return null;
-  if (row.custom_avatar) return `/api/users/${row.id}/avatar`;
+  if (row.custom_avatar) {
+    const v = row.avatar_version || 1;
+    return `/api/users/${row.id}/avatar?v=${v}`;
+  }
   return row.avatar || null;
 }
 
@@ -142,7 +146,10 @@ async function findOrCreateUser(profile) {
         `UPDATE users SET
            name = COALESCE(NULLIF($1, ''), name),
            email = COALESCE(NULLIF($2, ''), email),
-           avatar = COALESCE(NULLIF($3, ''), avatar)
+           avatar = CASE
+             WHEN custom_avatar IS NOT NULL AND custom_avatar != '' THEN avatar
+             ELSE COALESCE(NULLIF($3, ''), avatar)
+           END
          WHERE google_id = $4`,
         [name, email, avatar, googleId]
       );
@@ -272,12 +279,16 @@ async function upsertSave(userId, save) {
 
 async function setCustomAvatar(userId, dataUrl) {
   if (mode === 'pg') {
-    await pool.query('UPDATE users SET custom_avatar = $1 WHERE id = $2', [dataUrl, userId]);
+    await pool.query(
+      `UPDATE users SET custom_avatar = $1, avatar_version = COALESCE(avatar_version, 0) + 1 WHERE id = $2`,
+      [dataUrl, userId]
+    );
     return;
   }
   const user = fileDb.users.find((u) => u.id === userId);
   if (user) {
     user.custom_avatar = dataUrl;
+    user.avatar_version = (user.avatar_version || 0) + 1;
     saveFileDb();
   }
 }
@@ -357,15 +368,22 @@ async function setBalance(userId, balance) {
   return save;
 }
 
+async function getRegisteredUserCount() {
+  if (mode === 'pg') {
+    const res = await pool.query('SELECT COUNT(*)::int AS count FROM users');
+    return res.rows[0]?.count || 0;
+  }
+  return fileDb.users.length;
+}
+
 async function getLeaderboard() {
   if (mode === 'pg') {
     const res = await pool.query(
-      `SELECT u.id, u.name, u.email, u.custom_avatar, u.avatar, u.banned,
+      `SELECT u.id, u.name, u.email, u.custom_avatar, u.avatar, u.avatar_version, u.banned,
               COALESCE(s.balance, 0) AS balance, COALESCE(s.max_level, 1) AS max_level,
               COALESCE(s.total_taps, 0) AS total_taps
        FROM users u
        LEFT JOIN saves s ON s.user_id = u.id
-       WHERE u.banned = FALSE
        ORDER BY COALESCE(s.balance, 0) DESC, u.created_at ASC`
     );
     return res.rows.map((r, i) => ({
@@ -376,12 +394,11 @@ async function getLeaderboard() {
       balance: Number(r.balance),
       maxLevel: r.max_level,
       totalTaps: r.total_taps,
+      banned: !!r.banned,
     }));
   }
 
-  const rows = fileDb.users
-    .filter((u) => !u.banned)
-    .map((u) => {
+  const rows = fileDb.users.map((u) => {
       const s = fileDb.saves.find((x) => x.user_id === u.id);
       return {
         id: u.id,
@@ -390,6 +407,7 @@ async function getLeaderboard() {
         balance: s?.balance || 0,
         maxLevel: s?.max_level || 1,
         totalTaps: s?.total_taps || 0,
+        banned: !!u.banned,
       };
     })
     .sort((a, b) => b.balance - a.balance)
@@ -467,6 +485,7 @@ module.exports = {
   adjustBalance,
   setBalance,
   getLeaderboard,
+  getRegisteredUserCount,
   getAllPlayers,
   getSessionStore,
 };
