@@ -198,6 +198,8 @@ async function start() {
     res.json({
       id: req.user.id,
       name: req.user.name,
+      nickname: req.user.nickname || null,
+      displayName: req.user.displayName,
       email: req.user.email,
       avatar: req.user.avatar,
       hasCustomAvatar: !!req.user.custom_avatar,
@@ -324,6 +326,27 @@ async function start() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Sync failed' });
+    }
+  });
+
+  app.post('/api/nickname', requireAuth, async (req, res) => {
+    try {
+      await db.setNickname(req.user.id, req.body?.nickname);
+      const user = await db.getUserById(req.user.id);
+      res.json({
+        ok: true,
+        nickname: user.nickname,
+        displayName: user.displayName,
+      });
+    } catch (err) {
+      if (err.message === 'INVALID_LENGTH') {
+        return res.status(400).json({ error: 'Ник: от 2 до 20 символов' });
+      }
+      if (err.message === 'INVALID_CHARS') {
+        return res.status(400).json({ error: 'Только буквы, цифры, пробел, _ и -' });
+      }
+      console.error(err);
+      res.status(500).json({ error: 'Не удалось сохранить ник' });
     }
   });
 

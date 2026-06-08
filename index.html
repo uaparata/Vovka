@@ -11,17 +11,17 @@
   <link rel="stylesheet" href="styles.css?v=16">
   <style>
     :root {
-      --tap-img-size: min(300px, calc(78vw - 24px));
-      --tap-ring-1-size: min(325px, calc(78vw - 4px));
-      --tap-ring-2-size: min(345px, calc(78vw + 16px));
-      --tap-section-height: min(320px, calc(78vw + 28px));
+      --tap-img-size: min(260px, calc(72vw - 28px));
+      --tap-ring-1-size: min(280px, calc(72vw - 12px));
+      --tap-ring-2-size: min(296px, calc(72vw + 4px));
+      --tap-section-height: min(280px, calc(72vw + 20px));
     }
     @media (pointer: coarse) {
       :root {
-        --tap-img-size: min(240px, calc(68vw - 20px));
-        --tap-ring-1-size: min(262px, calc(68vw - 2px));
-        --tap-ring-2-size: min(280px, calc(68vw + 16px));
-        --tap-section-height: min(260px, calc(68vw + 20px));
+        --tap-img-size: min(190px, calc(58vw - 16px));
+        --tap-ring-1-size: min(208px, calc(58vw - 2px));
+        --tap-ring-2-size: min(222px, calc(58vw + 12px));
+        --tap-section-height: min(210px, calc(58vw + 16px));
       }
     }
     .tap-section { height: var(--tap-section-height) !important; min-height: var(--tap-section-height) !important; }
@@ -133,6 +133,21 @@
         <section id="panel-stats" class="panel">
           <div id="profile-section" class="profile-section hidden">
             <button id="avatar-upload-btn" class="avatar-upload-btn" type="button">📷 Сменить аватар</button>
+            <div class="nickname-block">
+              <label class="nickname-label" for="nickname-input">Никнейм</label>
+              <div class="nickname-row">
+                <input
+                  id="nickname-input"
+                  class="nickname-input"
+                  type="text"
+                  maxlength="20"
+                  placeholder="Твой ник в топе"
+                  autocomplete="off"
+                >
+                <button id="nickname-save-btn" class="nickname-save-btn" type="button">Сохранить</button>
+              </div>
+              <p class="nickname-hint">2–20 символов. Виден в топе игроков.</p>
+            </div>
           </div>
           <div class="stats-grid">
             <div class="stat-card">

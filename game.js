@@ -281,7 +281,10 @@ function showUserAuth(user) {
     rememberUser({ ...user, avatar: user.avatar || avatar });
   }
 
-  $('#user-chip').title = user.name || user.email || 'Аккаунт';
+  const label = user.displayName || user.nickname || user.name || user.email || 'Аккаунт';
+  $('#user-chip').title = label;
+  const nickInput = $('#nickname-input');
+  if (nickInput) nickInput.value = user.nickname || '';
   if (user.isAdmin) $('#admin-link')?.classList.remove('hidden');
   else $('#admin-link')?.classList.add('hidden');
 
@@ -290,7 +293,7 @@ function showUserAuth(user) {
 
 function imgAltFix(user) {
   const img = $('#user-avatar');
-  if (img) img.alt = user.name || '';
+  if (img) img.alt = user.displayName || user.nickname || user.name || '';
 }
 
 async function checkAuthConfig() {
@@ -964,6 +967,45 @@ function initLeaderboard() {
   startLeaderboardLive();
 }
 
+function initNickname() {
+  const saveBtn = $('#nickname-save-btn');
+  const input = $('#nickname-input');
+  if (!saveBtn || !input) return;
+
+  const save = async () => {
+    if (!currentUser) return;
+    const res = await fetch('/api/nickname', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ nickname: input.value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'Не удалось сохранить ник');
+      return;
+    }
+    currentUser = {
+      ...currentUser,
+      nickname: data.nickname,
+      displayName: data.displayName,
+    };
+    rememberUser(currentUser);
+    $('#user-chip').title = data.displayName || 'Аккаунт';
+    imgAltFix(currentUser);
+    renderLeaderboard();
+    saveBtn.textContent = 'Сохранено';
+    setTimeout(() => {
+      saveBtn.textContent = 'Сохранить';
+    }, 1200);
+  };
+
+  saveBtn.addEventListener('click', save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') save();
+  });
+}
+
 function initAvatar() {
   $('#avatar-upload-btn')?.addEventListener('click', () => {
     $('#avatar-input')?.click();
@@ -1074,6 +1116,7 @@ async function boot() {
   initLogin();
   initLogout();
   initAvatar();
+  initNickname();
   initLeaderboard();
   await checkAuthConfig();
   await waitForServer();

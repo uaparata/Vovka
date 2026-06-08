@@ -18,10 +18,10 @@
   --energy-low: #ef4444;
   --border: #30363d;
   --radius: 16px;
-  --tap-img-size: min(300px, calc(78vw - 24px));
-  --tap-ring-1-size: min(325px, calc(78vw - 4px));
-  --tap-ring-2-size: min(345px, calc(78vw + 16px));
-  --tap-section-height: min(320px, calc(78vw + 28px));
+  --tap-img-size: min(260px, calc(72vw - 28px));
+  --tap-ring-1-size: min(280px, calc(72vw - 12px));
+  --tap-ring-2-size: min(296px, calc(72vw + 4px));
+  --tap-section-height: min(280px, calc(72vw + 20px));
 }
 
 html, body {
@@ -565,6 +565,66 @@ body {
   color: var(--accent);
 }
 
+.nickname-block {
+  margin-top: 10px;
+}
+
+.nickname-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.nickname-row {
+  display: flex;
+  gap: 8px;
+}
+
+.nickname-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.nickname-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.nickname-save-btn {
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.nickname-save-btn:hover {
+  background: rgba(249, 115, 22, 0.25);
+}
+
+.nickname-hint {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
 .lb-header {
   margin-bottom: 10px;
 }
@@ -848,20 +908,20 @@ body {
 
 @media (max-height: 700px) {
   :root {
-    --tap-img-size: min(260px, calc(72vw - 28px));
-    --tap-ring-1-size: min(285px, calc(72vw - 8px));
-    --tap-ring-2-size: min(305px, calc(72vw + 12px));
-    --tap-section-height: min(280px, calc(72vw + 24px));
+    --tap-img-size: min(210px, calc(64vw - 24px));
+    --tap-ring-1-size: min(228px, calc(64vw - 10px));
+    --tap-ring-2-size: min(242px, calc(64vw + 4px));
+    --tap-section-height: min(230px, calc(64vw + 16px));
   }
 }
 
 /* Телефон: фиксированное место под тапалку, кнопки не перекрываются */
 @media (pointer: coarse) {
   :root {
-    --tap-img-size: min(240px, calc(68vw - 20px));
-    --tap-ring-1-size: min(262px, calc(68vw - 2px));
-    --tap-ring-2-size: min(280px, calc(68vw + 16px));
-    --tap-section-height: min(260px, calc(68vw + 20px));
+    --tap-img-size: min(190px, calc(58vw - 16px));
+    --tap-ring-1-size: min(208px, calc(58vw - 2px));
+    --tap-ring-2-size: min(222px, calc(58vw + 12px));
+    --tap-section-height: min(210px, calc(58vw + 16px));
   }
 
   .balance-section,

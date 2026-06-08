@@ -72,6 +72,7 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS max_level INTEGER DEFAULT 1`);
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS peak_balance DOUBLE PRECISION DEFAULT 0`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_version INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT`);
     await pool.query(`
       INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
       SELECT u.id, 0, 1000, 0, 0, '{}', 0, 0, 1, 0
@@ -117,6 +118,15 @@ function publicAvatarUrl(row) {
   return row.avatar || null;
 }
 
+function userDisplayName(row) {
+  if (!row) return 'Игрок';
+  const nick = row.nickname?.trim();
+  if (nick) return nick;
+  if (row.name?.trim()) return row.name.trim();
+  if (row.email) return row.email.split('@')[0];
+  return 'Игрок';
+}
+
 function rowToUser(row) {
   if (!row) return null;
   return {
@@ -124,6 +134,8 @@ function rowToUser(row) {
     google_id: row.google_id,
     email: row.email,
     name: row.name,
+    nickname: row.nickname || null,
+    displayName: userDisplayName(row),
     avatar: publicAvatarUrl(row),
     custom_avatar: row.custom_avatar,
     banned: !!row.banned,
@@ -181,6 +193,7 @@ async function findOrCreateUser(profile) {
     name,
     avatar,
     custom_avatar: null,
+    nickname: null,
     banned: false,
     ban_reason: null,
     suspicious_count: 0,
@@ -274,6 +287,31 @@ async function upsertSave(userId, save) {
   } else {
     fileDb.saves.push(payload);
   }
+  saveFileDb();
+}
+
+function normalizeNickname(raw) {
+  if (raw == null || raw === '') return null;
+  const value = String(raw).trim().replace(/\s+/g, ' ');
+  if (!value) return null;
+  if (value.length < 2 || value.length > 20) {
+    throw new Error('INVALID_LENGTH');
+  }
+  if (!/^[\p{L}\p{N}_\- ]+$/u.test(value)) {
+    throw new Error('INVALID_CHARS');
+  }
+  return value;
+}
+
+async function setNickname(userId, rawNickname) {
+  const nickname = normalizeNickname(rawNickname);
+  if (mode === 'pg') {
+    await pool.query('UPDATE users SET nickname = $1 WHERE id = $2', [nickname, userId]);
+    return;
+  }
+  const user = fileDb.users.find((u) => u.id === userId);
+  if (!user) throw new Error('USER_NOT_FOUND');
+  user.nickname = nickname;
   saveFileDb();
 }
 
@@ -379,7 +417,7 @@ async function getRegisteredUserCount() {
 async function getLeaderboard() {
   if (mode === 'pg') {
     const res = await pool.query(
-      `SELECT u.id, u.name, u.email, u.custom_avatar, u.avatar, u.avatar_version, u.banned,
+      `SELECT u.id, u.name, u.nickname, u.email, u.custom_avatar, u.avatar, u.avatar_version, u.banned,
               COALESCE(s.balance, 0) AS balance, COALESCE(s.max_level, 1) AS max_level,
               COALESCE(s.total_taps, 0) AS total_taps
        FROM users u
@@ -389,7 +427,7 @@ async function getLeaderboard() {
     return res.rows.map((r, i) => ({
       rank: i + 1,
       id: r.id,
-      name: r.name || r.email || 'Игрок',
+      name: userDisplayName(r),
       avatar: publicAvatarUrl(r),
       balance: Number(r.balance),
       maxLevel: r.max_level,
@@ -402,7 +440,7 @@ async function getLeaderboard() {
       const s = fileDb.saves.find((x) => x.user_id === u.id);
       return {
         id: u.id,
-        name: u.name || u.email || 'Игрок',
+        name: userDisplayName(u),
         avatar: publicAvatarUrl(u),
         balance: s?.balance || 0,
         maxLevel: s?.max_level || 1,
@@ -419,7 +457,7 @@ async function getLeaderboard() {
 async function getAllPlayers() {
   if (mode === 'pg') {
     const res = await pool.query(
-      `SELECT u.id, u.name, u.email, u.custom_avatar, u.avatar, u.banned, u.ban_reason,
+      `SELECT u.id, u.name, u.nickname, u.email, u.custom_avatar, u.avatar, u.banned, u.ban_reason,
               u.suspicious_count, s.balance, s.total_earned, s.total_taps, s.max_level
        FROM users u
        LEFT JOIN saves s ON s.user_id = u.id
@@ -427,7 +465,8 @@ async function getAllPlayers() {
     );
     return res.rows.map((r) => ({
       id: r.id,
-      name: r.name || '—',
+      name: userDisplayName(r),
+      nickname: r.nickname || null,
       email: r.email || '—',
       avatar: publicAvatarUrl(r),
       banned: !!r.banned,
@@ -444,7 +483,8 @@ async function getAllPlayers() {
     const s = fileDb.saves.find((x) => x.user_id === u.id);
     return {
       id: u.id,
-      name: u.name || '—',
+      name: userDisplayName(u),
+      nickname: u.nickname || null,
       email: u.email || '—',
       avatar: publicAvatarUrl(u),
       banned: !!u.banned,
@@ -478,6 +518,7 @@ module.exports = {
   getSave,
   getOrCreateSave,
   upsertSave,
+  setNickname,
   setCustomAvatar,
   getAvatarPayload,
   incrementSuspicious,
