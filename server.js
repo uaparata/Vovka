@@ -12,6 +12,8 @@ const {
   applyTap,
   applyBuyUpgrade,
   defaultSave,
+  mergeSaves,
+  saveNeedsSync,
 } = require('./game-logic');
 
 const port = Number(process.env.PORT) || 3000;
@@ -68,11 +70,13 @@ async function start() {
       resave: false,
       saveUninitialized: false,
       store: db.getSessionStore(),
+      rolling: true,
       cookie: {
         secure: isProduction,
         httpOnly: true,
         maxAge: 30 * 24 * 60 * 60 * 1000,
         sameSite: 'lax',
+        path: '/',
       },
     })
   );
@@ -154,8 +158,8 @@ async function start() {
 
   app.get('/api/leaderboard', async (_req, res) => {
     try {
-      const top = await db.getLeaderboard(5);
-      res.json({ top });
+      const players = await db.getLeaderboard();
+      res.json({ players });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to load leaderboard' });
@@ -231,6 +235,22 @@ async function start() {
       error: 'direct_save_disabled',
       message: 'Use /api/tap and /api/buy-upgrade',
     });
+  });
+
+  app.post('/api/save/sync', requireAuth, async (req, res) => {
+    try {
+      const incoming = req.body || {};
+      const existing = await db.getOrCreateSave(req.user.id);
+      const merged = mergeSaves(existing, incoming);
+      if (!saveNeedsSync(existing, merged) && (existing.totalEarned || 0) >= (merged.totalEarned || 0)) {
+        return res.json({ save: existing, synced: false });
+      }
+      await db.upsertSave(req.user.id, merged);
+      res.json({ save: merged, synced: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Sync failed' });
+    }
   });
 
   app.post('/api/avatar', requireAuth, async (req, res) => {

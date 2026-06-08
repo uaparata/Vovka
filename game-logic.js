@@ -78,6 +78,52 @@ function syncMaxLevel(save) {
   save.maxLevel = Math.max(save.maxLevel || 1, levelFromBalance(save.peakBalance));
 }
 
+function mergeUpgradeLevels(...levelObjs) {
+  const result = Object.fromEntries(UPGRADES.map((u) => [u.id, 0]));
+  for (const obj of levelObjs) {
+    if (!obj) continue;
+    for (const id of Object.keys(result)) {
+      result[id] = Math.max(result[id], obj[id] || 0);
+    }
+  }
+  return result;
+}
+
+function mergeSaves(...saves) {
+  const valid = saves.filter(Boolean);
+  if (!valid.length) return defaultSave();
+
+  const primary = valid.reduce((a, b) =>
+    (a.totalEarned || 0) >= (b.totalEarned || 0) ? a : b
+  );
+
+  const merged = {
+    balance: Math.max(...valid.map((s) => s.balance || 0)),
+    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1000),
+    totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
+    totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
+    maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
+    peakBalance: Math.max(
+      ...valid.map((s) => s.peakBalance || 0),
+      ...valid.map((s) => s.balance || 0)
+    ),
+    upgradeLevels: mergeUpgradeLevels(...valid.map((s) => s.upgradeLevels)),
+    lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
+    lastSave: Date.now(),
+  };
+  syncMaxLevel(merged);
+  return merged;
+}
+
+function saveNeedsSync(cloud, merged) {
+  if (!cloud) return true;
+  return (
+    (merged.totalEarned || 0) > (cloud.totalEarned || 0) ||
+    (merged.balance || 0) > (cloud.balance || 0) ||
+    (merged.totalTaps || 0) > (cloud.totalTaps || 0)
+  );
+}
+
 function applyPassive(save, now = Date.now()) {
   const stats = calcStats(save);
   const elapsed = (now - save.lastPassive) / 1000;
@@ -136,6 +182,8 @@ module.exports = {
   calcStats,
   getUpgradePrice,
   syncMaxLevel,
+  mergeSaves,
+  saveNeedsSync,
   applyPassive,
   applyTap,
   applyBuyUpgrade,

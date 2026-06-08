@@ -1,4 +1,9 @@
-const STORAGE_KEY = 'fauckzini_save';
+const STORAGE_GUEST = 'fauckzini_save_guest';
+const STORAGE_LEGACY = 'fauckzini_save';
+
+function storageKey(userId) {
+  return userId ? `fauckzini_save_u_${userId}` : STORAGE_GUEST;
+}
 
 const PHOTO_LEVELS = [
   { level: 1, min: 0, max: 10_000, image: 'assets/level-1.png', name: 'Новичок' },
@@ -96,15 +101,20 @@ const defaultState = () => ({
   lastPassive: Date.now(),
 });
 
-let state = loadLocalState();
+let state = defaultState();
 let currentUser = null;
 let isAdmin = false;
 let tapPending = false;
 
-function loadLocalState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
+function loadLocalState(userId = null) {
+  const keys = userId
+    ? [storageKey(userId)]
+    : [STORAGE_GUEST, STORAGE_LEGACY];
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
       const saved = JSON.parse(raw);
       const loaded = { ...defaultState(), ...saved };
       loaded.peakBalance = Math.max(loaded.peakBalance || 0, loaded.balance, loaded.totalEarned);
@@ -112,9 +122,52 @@ function loadLocalState() {
         loaded.maxLevel = levelFromBalance(loaded.peakBalance);
       }
       return loaded;
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
   return defaultState();
+}
+
+function mergeSaveStates(...saves) {
+  const valid = saves.filter(Boolean);
+  if (!valid.length) return defaultState();
+
+  const primary = valid.reduce((a, b) =>
+    (a.totalEarned || 0) >= (b.totalEarned || 0) ? a : b
+  );
+
+  const upgradeLevels = { ...defaultState().upgradeLevels };
+  for (const s of valid) {
+    for (const [id, lvl] of Object.entries(s.upgradeLevels || {})) {
+      upgradeLevels[id] = Math.max(upgradeLevels[id] || 0, lvl || 0);
+    }
+  }
+
+  const merged = {
+    ...defaultState(),
+    balance: Math.max(...valid.map((s) => s.balance || 0)),
+    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1000),
+    totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
+    totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
+    maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
+    peakBalance: Math.max(
+      ...valid.map((s) => s.peakBalance || 0),
+      ...valid.map((s) => s.balance || 0)
+    ),
+    upgradeLevels,
+    lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
+    lastSave: Date.now(),
+  };
+  syncMaxLevel(merged);
+  return merged;
+}
+
+function saveNeedsSync(cloud, merged) {
+  if (!cloud) return true;
+  return (
+    (merged.totalEarned || 0) > (cloud.totalEarned || 0) ||
+    (merged.balance || 0) > (cloud.balance || 0) ||
+    (merged.totalTaps || 0) > (cloud.totalTaps || 0)
+  );
 }
 
 function getSavePayload() {
@@ -153,7 +206,7 @@ function setSyncStatus(_status) {}
 
 function saveState() {
   state.lastSave = Date.now();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(storageKey(currentUser?.id), JSON.stringify(state));
 }
 
 function showGuestAuth() {
@@ -209,37 +262,85 @@ function initLogin() {
   });
 }
 
+async function syncSaveToServer() {
+  const res = await fetch('/api/save/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(getSavePayload()),
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  if (data.save) applySaveData(data.save);
+  return true;
+}
+
 async function loadCloudSave() {
+  if (!currentUser) return;
+
+  const userId = currentUser.id;
+  const guestLocal = loadLocalState(null);
+  const userLocal = loadLocalState(userId);
+
   try {
     const res = await fetch('/api/save', { credentials: 'include' });
-    if (!res.ok) return;
-    const data = await res.json();
-    const local = loadLocalState();
-
-    if (data.save) {
-      applySaveData(data.save);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!res.ok) {
+      state = mergeSaveStates(guestLocal, userLocal);
+      applySaveData(state);
+      saveState();
+      return;
     }
-  } catch (_) {}
+
+    const data = await res.json();
+    const cloud = data.save || null;
+    const merged = mergeSaveStates(guestLocal, userLocal, cloud);
+    applySaveData(merged);
+    saveState();
+
+    if (saveNeedsSync(cloud, merged)) {
+      await syncSaveToServer();
+      saveState();
+    }
+  } catch (_) {
+    state = mergeSaveStates(guestLocal, userLocal);
+    applySaveData(state);
+    saveState();
+  }
+}
+
+async function fetchMe(retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch('/api/me', { credentials: 'include' });
+      if (res.ok) return res.json();
+      if (res.status !== 401) return null;
+    } catch (_) {}
+    if (i < retries - 1) {
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  return null;
 }
 
 async function initAuth() {
-  try {
-    const res = await fetch('/api/me', { credentials: 'include' });
-    if (res.ok) {
-      currentUser = await res.json();
-      if (currentUser.banned) {
-        alert('Аккаунт заблокирован');
-        await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
-        showGuestAuth();
-        return;
-      }
-      isAdmin = currentUser.isAdmin;
-      showUserAuth(currentUser);
-      await loadCloudSave();
+  const user = await fetchMe();
+  if (user) {
+    currentUser = user;
+    if (currentUser.banned) {
+      alert('Аккаунт заблокирован');
+      await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+      currentUser = null;
+      state = loadLocalState(null);
+      showGuestAuth();
       return;
     }
-  } catch (_) {}
+    isAdmin = currentUser.isAdmin;
+    showUserAuth(currentUser);
+    await loadCloudSave();
+    return;
+  }
+  currentUser = null;
+  state = loadLocalState(null);
   showGuestAuth();
 }
 
@@ -247,8 +348,10 @@ function initLogout() {
   $('#logout-btn')?.addEventListener('click', async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
     currentUser = null;
+    isAdmin = false;
+    state = loadLocalState(null);
     showGuestAuth();
-    window.location.href = '/';
+    render();
   });
 }
 
@@ -570,13 +673,13 @@ async function renderLeaderboard() {
   list.innerHTML = '<p class="lb-loading">Загрузка...</p>';
   try {
     const res = await fetch('/api/leaderboard');
-    const { top } = await res.json();
+    const { players } = await res.json();
     list.innerHTML = '';
-    if (!top.length) {
-      list.innerHTML = '<p class="lb-empty">Пока никого нет</p>';
+    if (!players?.length) {
+      list.innerHTML = '<p class="lb-empty">Пока никого нет — войди через Google!</p>';
       return;
     }
-    for (const p of top) {
+    for (const p of players) {
       const card = document.createElement('div');
       card.className = 'lb-card' + (p.rank === 1 ? ' lb-gold' : '');
       card.innerHTML = `
@@ -675,6 +778,10 @@ async function boot() {
   syncMaxLevel();
   initOfflineProgress();
   render();
+
+  if (new URLSearchParams(window.location.search).get('auth') === 'success' && currentUser) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 
   setInterval(async () => {
     if (currentUser) {

@@ -299,17 +299,16 @@ async function setBalance(userId, balance) {
   return save;
 }
 
-async function getLeaderboard(limit = 5) {
+async function getLeaderboard() {
   if (mode === 'pg') {
     const res = await pool.query(
       `SELECT u.id, u.name, u.email, u.custom_avatar, u.avatar, u.banned,
-              s.balance, s.max_level, s.total_taps
-       FROM saves s
-       JOIN users u ON u.id = s.user_id
+              COALESCE(s.balance, 0) AS balance, COALESCE(s.max_level, 1) AS max_level,
+              COALESCE(s.total_taps, 0) AS total_taps
+       FROM users u
+       LEFT JOIN saves s ON s.user_id = u.id
        WHERE u.banned = FALSE
-       ORDER BY s.balance DESC
-       LIMIT $1`,
-      [limit]
+       ORDER BY COALESCE(s.balance, 0) DESC, u.created_at ASC`
     );
     return res.rows.map((r, i) => ({
       rank: i + 1,
@@ -322,22 +321,20 @@ async function getLeaderboard(limit = 5) {
     }));
   }
 
-  const rows = fileDb.saves
-    .map((s) => {
-      const u = fileDb.users.find((x) => x.id === s.user_id);
-      if (!u || u.banned) return null;
+  const rows = fileDb.users
+    .filter((u) => !u.banned)
+    .map((u) => {
+      const s = fileDb.saves.find((x) => x.user_id === u.id);
       return {
         id: u.id,
         name: u.name || u.email || 'Игрок',
         avatar: u.custom_avatar || u.avatar,
-        balance: s.balance,
-        maxLevel: s.max_level,
-        totalTaps: s.total_taps,
+        balance: s?.balance || 0,
+        maxLevel: s?.max_level || 1,
+        totalTaps: s?.total_taps || 0,
       };
     })
-    .filter(Boolean)
     .sort((a, b) => b.balance - a.balance)
-    .slice(0, limit)
     .map((r, i) => ({ rank: i + 1, ...r }));
 
   return rows;
