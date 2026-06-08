@@ -794,3 +794,63 @@ body {
     max-height: 32vh;
   }
 }
+
+/* Телефон: фиксированное место под тапалку, кнопки не перекрываются */
+@media (pointer: coarse) {
+  .balance-section,
+  .level-progress-section,
+  .energy-section {
+    flex-shrink: 0;
+  }
+
+  .tap-section {
+    flex: 0 0 auto;
+    height: clamp(168px, 22dvh, 210px);
+    max-height: 210px;
+    min-height: 168px;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+  }
+
+  .tap-ring-1 {
+    width: 168px;
+    height: 168px;
+  }
+
+  .tap-ring-2 {
+    width: 198px;
+    height: 198px;
+  }
+
+  .vova-img {
+    width: 132px;
+    height: 132px;
+  }
+
+  .tap-hint {
+    margin-top: 6px;
+    font-size: 0.72rem;
+  }
+
+  .tabs {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+    margin: 4px 0 6px;
+    padding-top: 2px;
+    background: var(--bg);
+    box-shadow: 0 -8px 16px var(--bg);
+  }
+
+  .panel {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .leaderboard-list {
+    max-height: none;
+  }
+}
