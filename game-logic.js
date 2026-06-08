@@ -74,8 +74,7 @@ function levelFromBalance(balance) {
 }
 
 function syncMaxLevel(save) {
-  save.peakBalance = Math.max(save.peakBalance || 0, save.balance, save.totalEarned);
-  save.maxLevel = Math.max(save.maxLevel || 1, levelFromBalance(save.peakBalance));
+  save.maxLevel = levelFromBalance(save.balance || 0);
 }
 
 function mergeUpgradeLevels(...levelObjs) {
@@ -102,7 +101,6 @@ function mergeSaves(...saves) {
     energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1000),
     totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
     totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
-    maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
     peakBalance: Math.max(
       ...valid.map((s) => s.peakBalance || 0),
       ...valid.map((s) => s.balance || 0)
@@ -181,6 +179,7 @@ module.exports = {
   defaultSave,
   calcStats,
   getUpgradePrice,
+  levelFromBalance,
   syncMaxLevel,
   mergeSaves,
   saveNeedsSync,

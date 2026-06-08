@@ -142,10 +142,7 @@ function loadLocalState(userId = null) {
       if (!raw) continue;
       const saved = JSON.parse(raw);
       const loaded = { ...defaultState(), ...saved };
-      loaded.peakBalance = Math.max(loaded.peakBalance || 0, loaded.balance, loaded.totalEarned);
-      if (!saved.maxLevel) {
-        loaded.maxLevel = levelFromBalance(loaded.peakBalance);
-      }
+      loaded.maxLevel = levelFromBalance(loaded.balance || 0);
       return loaded;
     } catch (_) {}
   }
@@ -173,7 +170,6 @@ function mergeSaveStates(...saves) {
     energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1000),
     totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
     totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
-    maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
     peakBalance: Math.max(
       ...valid.map((s) => s.peakBalance || 0),
       ...valid.map((s) => s.balance || 0)
@@ -551,14 +547,8 @@ function levelFromBalance(balance) {
   return level;
 }
 
-function syncMaxLevel() {
-  state.peakBalance = Math.max(
-    state.peakBalance || 0,
-    state.balance,
-    state.totalEarned
-  );
-  const fromPeak = levelFromBalance(state.peakBalance);
-  state.maxLevel = Math.max(state.maxLevel || 1, fromPeak);
+function syncMaxLevel(target = state) {
+  target.maxLevel = levelFromBalance(target.balance || 0);
 }
 
 function getPhotoLevelData() {
@@ -898,7 +888,7 @@ function paintLeaderboard(players, total, myRank) {
 
     const coins = document.createElement('span');
     coins.className = 'lb-coins';
-    coins.textContent = `${formatCoinsFull(p.balance)} 💪`;
+    coins.textContent = `${formatCoinsFull(p.totalEarned ?? p.balance)} 💪`;
 
     card.appendChild(info);
     card.appendChild(coins);
@@ -908,7 +898,7 @@ function paintLeaderboard(players, total, myRank) {
   if (hasMe && resolvedMyRank) {
     myRankEl?.classList.remove('hidden');
     if (myRankEl) {
-      myRankEl.textContent = `Твоё место: #${resolvedMyRank} · ${formatCoinsFull(state.balance)} 💪`;
+      myRankEl.textContent = `Твоё место: #${resolvedMyRank} · ${formatCoinsFull(state.totalEarned)} 💪 заработано`;
     }
     findBtn?.classList.remove('hidden');
   } else {

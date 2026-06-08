@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { defaultSave } = require('./game-logic');
+const { defaultSave, levelFromBalance } = require('./game-logic');
 
 let mode = null;
 let pool = null;
@@ -259,7 +259,7 @@ async function upsertSave(userId, save) {
          upgrade_levels = EXCLUDED.upgrade_levels,
          last_passive = EXCLUDED.last_passive,
          last_save = EXCLUDED.last_save,
-         max_level = GREATEST(saves.max_level, EXCLUDED.max_level),
+         max_level = EXCLUDED.max_level,
          peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance),
          updated_at = NOW()`,
       [
@@ -281,7 +281,7 @@ async function upsertSave(userId, save) {
   const idx = fileDb.saves.findIndex((s) => s.user_id === userId);
   if (idx >= 0) {
     const prev = fileDb.saves[idx];
-    payload.max_level = Math.max(prev.max_level || 1, payload.max_level || 1);
+    payload.max_level = payload.max_level || 1;
     payload.peak_balance = Math.max(prev.peak_balance || 0, payload.peak_balance || 0);
     fileDb.saves[idx] = { ...prev, ...payload };
   } else {
@@ -418,11 +418,12 @@ async function getLeaderboard() {
   if (mode === 'pg') {
     const res = await pool.query(
       `SELECT u.id, u.name, u.nickname, u.email, u.custom_avatar, u.avatar, u.avatar_version, u.banned,
-              COALESCE(s.balance, 0) AS balance, COALESCE(s.max_level, 1) AS max_level,
+              COALESCE(s.balance, 0) AS balance,
+              COALESCE(s.total_earned, 0) AS total_earned,
               COALESCE(s.total_taps, 0) AS total_taps
        FROM users u
        LEFT JOIN saves s ON s.user_id = u.id
-       ORDER BY COALESCE(s.balance, 0) DESC, u.created_at ASC`
+       ORDER BY COALESCE(s.total_earned, 0) DESC, u.created_at ASC`
     );
     return res.rows.map((r, i) => ({
       rank: i + 1,
@@ -430,7 +431,8 @@ async function getLeaderboard() {
       name: userDisplayName(r),
       avatar: publicAvatarUrl(r),
       balance: Number(r.balance),
-      maxLevel: r.max_level,
+      totalEarned: Number(r.total_earned),
+      maxLevel: levelFromBalance(Number(r.balance)),
       totalTaps: r.total_taps,
       banned: !!r.banned,
     }));
@@ -438,17 +440,19 @@ async function getLeaderboard() {
 
   const rows = fileDb.users.map((u) => {
       const s = fileDb.saves.find((x) => x.user_id === u.id);
+      const balance = s?.balance || 0;
       return {
         id: u.id,
         name: userDisplayName(u),
         avatar: publicAvatarUrl(u),
-        balance: s?.balance || 0,
-        maxLevel: s?.max_level || 1,
+        balance,
+        totalEarned: s?.total_earned || 0,
+        maxLevel: levelFromBalance(balance),
         totalTaps: s?.total_taps || 0,
         banned: !!u.banned,
       };
     })
-    .sort((a, b) => b.balance - a.balance)
+    .sort((a, b) => b.totalEarned - a.totalEarned)
     .map((r, i) => ({ rank: i + 1, ...r }));
 
   return rows;
