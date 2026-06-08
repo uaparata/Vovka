@@ -169,48 +169,32 @@ body {
   margin-bottom: 12px;
 }
 
-.level-progress-card {
-  background: linear-gradient(160deg, rgba(249, 115, 22, 0.14), rgba(22, 27, 34, 0.98));
-  border: 2px solid rgba(251, 191, 36, 0.45);
-  border-radius: var(--radius);
-  padding: 14px 14px 12px;
-  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.15);
+.level-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+  font-weight: 800;
 }
 
-.level-progress-headline {
-  font-size: 1.1rem;
-  font-weight: 900;
+.level-progress-title {
+  font-size: 0.9rem;
   color: var(--gold);
-  text-align: center;
-  margin-bottom: 4px;
-  letter-spacing: 0.3px;
 }
 
-.level-progress-next {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-align: center;
-  margin-bottom: 10px;
+.level-progress-meta {
+  font-size: 0.72rem;
+  color: var(--accent);
 }
 
-.level-progress-hint {
-  margin-top: 8px;
-  font-size: 0.62rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-align: center;
-  line-height: 1.35;
-  opacity: 0.85;
-}
-
-.level-progress-track {
+.level-progress-bar {
   position: relative;
-  height: 36px;
-  background: #0a0e14;
-  border: 2px solid rgba(251, 191, 36, 0.35);
-  border-radius: 18px;
+  height: 26px;
+  background: var(--bg-card);
+  border: 2px solid rgba(251, 191, 36, 0.4);
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 2px 12px rgba(249, 115, 22, 0.12);
 }
 
 .level-progress-fill {
@@ -219,10 +203,9 @@ body {
   top: 0;
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #f59e0b, #f97316, #fb923c);
-  border-radius: 16px;
-  transition: width 0.35s ease;
-  box-shadow: 0 0 16px rgba(251, 191, 36, 0.5);
+  background: linear-gradient(90deg, #fbbf24, #f97316);
+  border-radius: 12px;
+  transition: width 0.3s ease;
 }
 
 .level-progress-bar-label {
@@ -231,21 +214,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.82rem;
   font-weight: 900;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 12px rgba(0, 0, 0, 0.6);
-  letter-spacing: 0.4px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
   z-index: 2;
   pointer-events: none;
-}
-
-.level-progress-sub {
-  margin-top: 8px;
-  text-align: center;
-  font-size: 0.78rem;
-  font-weight: 800;
-  color: var(--accent);
 }
 
 .balance-section {

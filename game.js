@@ -89,6 +89,7 @@ const defaultState = () => ({
   energy: 1000,
   totalTaps: 0,
   totalEarned: 0,
+  maxLevel: 1,
   upgradeLevels: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
   lastSave: Date.now(),
   lastPassive: Date.now(),
@@ -104,7 +105,14 @@ function loadLocalState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      return { ...defaultState(), ...saved };
+      const loaded = { ...defaultState(), ...saved };
+      if (!saved.maxLevel) {
+        loaded.maxLevel = Math.max(
+          levelFromBalance(loaded.balance),
+          levelFromBalance(loaded.totalEarned)
+        );
+      }
+      return loaded;
     }
   } catch (_) {}
   return defaultState();
@@ -116,6 +124,7 @@ function getSavePayload() {
     energy: state.energy,
     totalTaps: state.totalTaps,
     totalEarned: state.totalEarned,
+    maxLevel: state.maxLevel,
     upgradeLevels: state.upgradeLevels,
     lastPassive: state.lastPassive,
     lastSave: state.lastSave,
@@ -129,10 +138,12 @@ function applySaveData(data) {
     energy: data.energy ?? 1000,
     totalTaps: data.totalTaps ?? 0,
     totalEarned: data.totalEarned ?? 0,
+    maxLevel: data.maxLevel ?? 1,
     upgradeLevels: { ...defaultState().upgradeLevels, ...(data.upgradeLevels || {}) },
     lastPassive: data.lastPassive ?? Date.now(),
     lastSave: data.lastSave ?? Date.now(),
   };
+  syncMaxLevel();
 }
 
 let googleAuthReady = true;
@@ -225,11 +236,18 @@ async function loadCloudSave() {
     const local = loadLocalState();
 
     if (data.save) {
-      if (local.totalEarned > data.save.totalEarned) {
+      const useLocal =
+        local.totalEarned > data.save.totalEarned ||
+        (local.maxLevel || 1) > (data.save.maxLevel || 1);
+      if (useLocal) {
         applySaveData(local);
+        state.maxLevel = Math.max(local.maxLevel || 1, data.save.maxLevel || 1);
+        syncMaxLevel();
         await syncToServer();
       } else {
         applySaveData(data.save);
+        state.maxLevel = Math.max(state.maxLevel || 1, local.maxLevel || 1);
+        syncMaxLevel();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
     } else if (local.totalEarned > 0) {
@@ -307,37 +325,44 @@ function calcStats() {
   };
 }
 
-function getPhotoLevelData() {
-  const earned = state.totalEarned;
-  let idx = 0;
-  for (let i = PHOTO_LEVELS.length - 1; i >= 0; i--) {
-    if (earned >= PHOTO_LEVELS[i].min) {
-      idx = i;
-      break;
-    }
+function levelFromBalance(balance) {
+  let level = 1;
+  for (const l of PHOTO_LEVELS) {
+    if (balance >= l.min) level = l.level;
   }
+  return level;
+}
+
+function syncMaxLevel() {
+  const fromBalance = levelFromBalance(state.balance);
+  state.maxLevel = Math.max(state.maxLevel || 1, fromBalance);
+}
+
+function getPhotoLevelData() {
+  const idx = Math.min((state.maxLevel || 1) - 1, PHOTO_LEVELS.length - 1);
   const current = PHOTO_LEVELS[idx];
-  const isMax = idx === PHOTO_LEVELS.length - 1 && earned >= current.max;
-  const next = PHOTO_LEVELS[idx + 1] || null;
-  const range = current.max - current.min;
-  const progress = isMax ? 1 : Math.min(1, Math.max(0, (earned - current.min) / range));
-  const remaining = isMax ? 0 : current.max - earned;
+  const balance = state.balance;
+  const isMax = state.maxLevel >= PHOTO_LEVELS.length;
+  const nextThreshold = isMax ? PHOTO_LEVELS[PHOTO_LEVELS.length - 1].max : current.max;
+  const progress = isMax
+    ? Math.min(1, balance / nextThreshold)
+    : Math.min(1, Math.max(0, balance / nextThreshold));
+  const remaining = isMax ? 0 : Math.max(0, nextThreshold - balance);
 
   return {
     level: current.level,
     name: current.name,
     image: current.image,
-    min: current.min,
-    max: current.max,
     progress,
     remaining,
     isMax,
-    nextLevel: next?.level ?? null,
+    nextLevel: isMax ? null : current.level + 1,
+    nextThreshold,
   };
 }
 
 function getLevel() {
-  return getPhotoLevelData().level;
+  return state.maxLevel || 1;
 }
 
 function getRank() {
@@ -363,6 +388,8 @@ function render() {
 
   if (state.energy > stats.maxEnergy) state.energy = stats.maxEnergy;
 
+  syncMaxLevel();
+
   $('#balance').textContent = formatNum(state.balance);
   $('#per-tap').textContent = `+${formatNum(stats.perTap)} за тап`;
   $('#per-hour').textContent = `+${formatNum(stats.perHour)}/час`;
@@ -382,21 +409,16 @@ function render() {
   lastPhotoLevel = photoLevel.level;
 
   const progressPct = photoLevel.progress * 100;
-  const earnedTotal = Math.floor(state.totalEarned);
   $('#level-progress-fill').style.width = progressPct + '%';
+  $('#level-progress-title').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name}`;
 
   if (photoLevel.isMax) {
-    $('#level-progress-current').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name} 👑`;
-    $('#level-progress-next').textContent = 'Максимальный уровень достигнут';
-    $('#level-progress-bar-label').textContent = `${formatCoinsFull(earnedTotal)} монет`;
-    $('#level-progress-remaining').textContent = 'Ты на вершине!';
+    $('#level-progress-meta').textContent = 'Макс. 👑';
+    $('#level-progress-bar-label').textContent = 'Максимальный уровень';
   } else {
-    $('#level-progress-current').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name}`;
-    $('#level-progress-next').textContent = `Следующий: уровень ${photoLevel.level + 1}`;
+    $('#level-progress-meta').textContent = `→ уровень ${photoLevel.nextLevel}`;
     $('#level-progress-bar-label').textContent =
-      `${formatCoinsFull(earnedTotal)} / ${formatCoinsFull(photoLevel.max)}`;
-    $('#level-progress-remaining').textContent =
-      `До уровня ${photoLevel.level + 1} осталось ${formatCoinsFull(photoLevel.remaining)} 💪`;
+      `Осталось ${formatCoinsFull(photoLevel.remaining)} 💪`;
   }
 
   const energyPct = (state.energy / stats.maxEnergy) * 100;
@@ -558,6 +580,7 @@ async function boot() {
   initLogout();
   await checkAuthConfig();
   await initAuth();
+  syncMaxLevel();
   initOfflineProgress();
   render();
 

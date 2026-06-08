@@ -58,6 +58,7 @@ async function initDatabase() {
       );
       CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions(expire);
     `);
+    await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS max_level INTEGER DEFAULT 1`);
     mode = 'pg';
     console.log('Database: PostgreSQL');
     return;
@@ -82,6 +83,7 @@ function rowToSave(row) {
     upgradeLevels: levels,
     lastPassive: Number(row.last_passive),
     lastSave: Number(row.last_save),
+    maxLevel: row.max_level ?? 1,
   };
 }
 
@@ -145,13 +147,14 @@ async function upsertSave(userId, save) {
     upgrade_levels: levels,
     last_passive: save.lastPassive ?? Date.now(),
     last_save: save.lastSave ?? Date.now(),
+    max_level: save.maxLevel ?? 1,
     updated_at: new Date().toISOString(),
   };
 
   if (mode === 'pg') {
     await pool.query(
-      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (user_id) DO UPDATE SET
          balance = EXCLUDED.balance,
          energy = EXCLUDED.energy,
@@ -160,6 +163,7 @@ async function upsertSave(userId, save) {
          upgrade_levels = EXCLUDED.upgrade_levels,
          last_passive = EXCLUDED.last_passive,
          last_save = EXCLUDED.last_save,
+         max_level = GREATEST(saves.max_level, EXCLUDED.max_level),
          updated_at = NOW()`,
       [
         userId,
@@ -170,14 +174,20 @@ async function upsertSave(userId, save) {
         JSON.stringify(levels),
         payload.last_passive,
         payload.last_save,
+        payload.max_level,
       ]
     );
     return;
   }
 
   const idx = fileDb.saves.findIndex((s) => s.user_id === userId);
-  if (idx >= 0) fileDb.saves[idx] = payload;
-  else fileDb.saves.push(payload);
+  if (idx >= 0) {
+    const prev = fileDb.saves[idx];
+    payload.max_level = Math.max(prev.max_level || 1, payload.max_level || 1);
+    fileDb.saves[idx] = { ...prev, ...payload };
+  } else {
+    fileDb.saves.push(payload);
+  }
   saveFileDb();
 }
 
