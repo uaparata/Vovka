@@ -176,9 +176,14 @@ function isFreshResetSave(save) {
     upgradeSum === 0 &&
     (save.totalTaps || 0) === 0 &&
     (save.totalEarned || 0) === 0 &&
-    (save.balance || 0) === 0 &&
-    (save.maxLevel || 1) <= 1
+    (save.balance || 0) === 0
   );
+}
+
+function clearStaleLocalSaves(userId) {
+  localStorage.removeItem(storageKey(userId));
+  localStorage.removeItem(STORAGE_GUEST);
+  localStorage.removeItem(STORAGE_LEGACY);
 }
 
 function mergeSaveStates(...saves) {
@@ -425,16 +430,23 @@ async function loadCloudSave() {
     const data = await res.json();
     const cloud = data.save || null;
     if (cloud && isFreshResetSave(cloud)) {
+      clearStaleLocalSaves(userId);
       applySaveData(cloud);
       saveState();
-    } else {
-      const merged = mergeSaveStates(bestLocal, cloud);
-      applySaveData(merged);
-      saveState();
+      render();
+      return;
+    }
+
+    const merged = mergeSaveStates(bestLocal, cloud);
+    applySaveData(merged);
+    saveState();
+
+    if ((cloud?.totalEarned || 0) === 0 && (cloud?.balance || 0) === 0) {
+      return;
     }
 
     const reconciled = await reconcileSaveToServer(getSavePayload());
-    if (reconciled) {
+    if (reconciled && !isFreshResetSave(reconciled)) {
       applySaveData(reconciled);
       saveState();
     }
@@ -1405,6 +1417,9 @@ async function boot() {
         }
         if (res.ok) {
           const { save } = await res.json();
+          if (isFreshResetSave(save)) {
+            clearStaleLocalSaves(currentUser.id);
+          }
           applySaveData(save);
           render();
           saveState();

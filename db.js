@@ -233,7 +233,8 @@ async function getOrCreateSave(userId) {
   return save;
 }
 
-async function upsertSave(userId, save) {
+async function upsertSave(userId, save, options = {}) {
+  const fullReplace = !!options.fullReplace;
   const levels = save.upgradeLevels || {};
   const payload = {
     user_id: userId,
@@ -251,6 +252,13 @@ async function upsertSave(userId, save) {
   };
 
   if (mode === 'pg') {
+    const maxLevelSql = fullReplace
+      ? 'max_level = EXCLUDED.max_level'
+      : 'max_level = GREATEST(saves.max_level, EXCLUDED.max_level)';
+    const peakSql = fullReplace
+      ? 'peak_balance = EXCLUDED.peak_balance'
+      : 'peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance)';
+
     await pool.query(
       `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_energy_regen, last_save, max_level, peak_balance)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -263,8 +271,8 @@ async function upsertSave(userId, save) {
          last_passive = EXCLUDED.last_passive,
          last_energy_regen = EXCLUDED.last_energy_regen,
          last_save = EXCLUDED.last_save,
-         max_level = GREATEST(saves.max_level, EXCLUDED.max_level),
-         peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance),
+         ${maxLevelSql},
+         ${peakSql},
          updated_at = NOW()`,
       [
         userId,
@@ -286,9 +294,11 @@ async function upsertSave(userId, save) {
   const idx = fileDb.saves.findIndex((s) => s.user_id === userId);
   if (idx >= 0) {
     const prev = fileDb.saves[idx];
-    payload.max_level = Math.max(prev.max_level || 1, payload.max_level || 1);
-    payload.peak_balance = Math.max(prev.peak_balance || 0, payload.peak_balance || 0);
-    fileDb.saves[idx] = { ...prev, ...payload };
+    if (!fullReplace) {
+      payload.max_level = Math.max(prev.max_level || 1, payload.max_level || 1);
+      payload.peak_balance = Math.max(prev.peak_balance || 0, payload.peak_balance || 0);
+    }
+    fileDb.saves[idx] = fullReplace ? payload : { ...prev, ...payload };
   } else {
     fileDb.saves.push(payload);
   }
@@ -435,7 +445,7 @@ async function setTotalEarned(userId, totalEarned) {
 
 async function resetPlayerProgress(userId) {
   const save = defaultSave();
-  await upsertSave(userId, save);
+  await upsertSave(userId, save, { fullReplace: true });
   return save;
 }
 

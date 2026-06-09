@@ -106,8 +106,7 @@ function isFreshResetSave(save) {
     upgradeSum === 0 &&
     (save.totalTaps || 0) === 0 &&
     (save.totalEarned || 0) === 0 &&
-    (save.balance || 0) === 0 &&
-    (save.maxLevel || 1) <= 1
+    (save.balance || 0) === 0
   );
 }
 
