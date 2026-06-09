@@ -1,9 +1,11 @@
-const MIN_TAP_INTERVAL_MS = 85;
-const MAX_TAPS_PER_WINDOW = 12;
+const MIN_TAP_INTERVAL_MS = 100;
+const MAX_TAPS_PER_WINDOW = 10;
 const WINDOW_MS = 1000;
-const MAX_VIOLATIONS_BEFORE_FLAG = 15;
+const MAX_VIOLATIONS_BEFORE_FLAG = 12;
+const MIN_TICK_INTERVAL_MS = 3000;
 
 const tapHistory = new Map();
+const tickHistory = new Map();
 
 function getTrack(userId) {
   if (!tapHistory.has(userId)) {
@@ -38,19 +40,26 @@ function validateTap(userId, now = Date.now()) {
 
   track.times.push(now);
   track.lastTap = now;
-  return {
-    allowed: true,
-    violations: track.violations,
-    flagged: track.violations >= MAX_VIOLATIONS_BEFORE_FLAG,
-  };
+  return { allowed: true, violations: track.violations, flagged: false };
+}
+
+function validateTick(userId, now = Date.now()) {
+  const last = tickHistory.get(userId) || 0;
+  if (now - last < MIN_TICK_INTERVAL_MS) {
+    return { allowed: false, reason: 'tick_rate' };
+  }
+  tickHistory.set(userId, now);
+  return { allowed: true };
 }
 
 function resetTrack(userId) {
   tapHistory.delete(userId);
+  tickHistory.delete(userId);
 }
 
 module.exports = {
   validateTap,
+  validateTick,
   resetTrack,
   MIN_TAP_INTERVAL_MS,
 };

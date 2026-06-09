@@ -390,7 +390,11 @@ async function setBanned(userId, banned, reason = null) {
 
 async function adjustBalance(userId, delta) {
   const save = await getOrCreateSave(userId);
-  save.balance = Math.max(0, save.balance + delta);
+  const change = Number(delta) || 0;
+  save.balance = Math.max(0, save.balance + change);
+  if (change > 0) {
+    save.totalEarned = Math.max(save.totalEarned || 0, save.balance);
+  }
   const { syncMaxLevel } = require('./game-logic');
   syncMaxLevel(save);
   await upsertSave(userId, save);
@@ -399,9 +403,25 @@ async function adjustBalance(userId, delta) {
 
 async function setBalance(userId, balance) {
   const save = await getOrCreateSave(userId);
-  save.balance = Math.max(0, balance);
+  save.balance = Math.max(0, Number(balance) || 0);
   const { syncMaxLevel } = require('./game-logic');
   syncMaxLevel(save);
+  await upsertSave(userId, save);
+  return save;
+}
+
+async function setTotalEarned(userId, totalEarned) {
+  const save = await getOrCreateSave(userId);
+  save.totalEarned = Math.max(0, Number(totalEarned) || 0);
+  if (save.balance > save.totalEarned) {
+    save.totalEarned = save.balance;
+  }
+  await upsertSave(userId, save);
+  return save;
+}
+
+async function resetPlayerProgress(userId) {
+  const save = defaultSave();
   await upsertSave(userId, save);
   return save;
 }
@@ -466,7 +486,7 @@ async function getAllPlayers() {
               u.suspicious_count, s.balance, s.total_earned, s.total_taps, s.max_level
        FROM users u
        LEFT JOIN saves s ON s.user_id = u.id
-       ORDER BY s.balance DESC NULLS LAST`
+       ORDER BY COALESCE(s.total_earned, 0) DESC, COALESCE(s.balance, 0) DESC`
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -484,23 +504,25 @@ async function getAllPlayers() {
     }));
   }
 
-  return fileDb.users.map((u) => {
-    const s = fileDb.saves.find((x) => x.user_id === u.id);
-    return {
-      id: u.id,
-      name: userDisplayName(u),
-      nickname: u.nickname || null,
-      email: u.email || '—',
-      avatar: publicAvatarUrl(u),
-      banned: !!u.banned,
-      banReason: u.ban_reason,
-      suspicious: u.suspicious_count || 0,
-      balance: s?.balance || 0,
-      totalEarned: s?.total_earned || 0,
-      totalTaps: s?.total_taps || 0,
-      maxLevel: s?.max_level || 1,
-    };
-  });
+  return fileDb.users
+    .map((u) => {
+      const s = fileDb.saves.find((x) => x.user_id === u.id);
+      return {
+        id: u.id,
+        name: userDisplayName(u),
+        nickname: u.nickname || null,
+        email: u.email || '—',
+        avatar: publicAvatarUrl(u),
+        banned: !!u.banned,
+        banReason: u.ban_reason,
+        suspicious: u.suspicious_count || 0,
+        balance: s?.balance || 0,
+        totalEarned: s?.total_earned || 0,
+        totalTaps: s?.total_taps || 0,
+        maxLevel: s?.max_level || 1,
+      };
+    })
+    .sort((a, b) => b.totalEarned - a.totalEarned || b.balance - a.balance);
 }
 
 function getSessionStore() {
@@ -530,6 +552,8 @@ module.exports = {
   setBanned,
   adjustBalance,
   setBalance,
+  setTotalEarned,
+  resetPlayerProgress,
   getLeaderboard,
   getRegisteredUserCount,
   getAllPlayers,

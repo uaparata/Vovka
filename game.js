@@ -326,12 +326,17 @@ function initLogin() {
   });
 }
 
-async function syncSaveToServer() {
-  const res = await fetch('/api/save/sync', {
+async function migrateLocalUpgrades() {
+  const userId = currentUser.id;
+  const guestLocal = loadLocalState(null);
+  const userLocal = loadLocalState(userId);
+  const bestLocal = mergeSaveStates(guestLocal, userLocal);
+
+  const res = await fetch('/api/save/migrate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify(getSavePayload()),
+    body: JSON.stringify({ upgradeLevels: bestLocal.upgradeLevels }),
   });
   if (!res.ok) return false;
   const data = await res.json();
@@ -361,18 +366,10 @@ async function loadCloudSave() {
     }
 
     const data = await res.json();
-    const cloud = data.save || null;
-
-    if (!cloud || saveNeedsSync(cloud, bestLocal)) {
-      const merged = mergeSaveStates(guestLocal, userLocal, cloud);
-      applySaveData(merged);
-      saveState();
-      await syncSaveToServer();
-      saveState();
-    } else {
-      applySaveData(cloud);
-      saveState();
-    }
+    applySaveData(data.save || defaultState());
+    saveState();
+    await migrateLocalUpgrades();
+    saveState();
   } catch (_) {
     applySaveData(bestLocal);
     saveState();
@@ -1145,12 +1142,11 @@ async function boot() {
       saveState();
       render();
     }
-  }, 1000);
+  }, 5000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       saveState();
-      if (currentUser) syncSaveToServer();
     }
     if (document.visibilityState === 'visible' && currentUser) {
       fetchMe(4).then(async (user) => {

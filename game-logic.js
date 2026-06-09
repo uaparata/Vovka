@@ -8,6 +8,9 @@ const UPGRADES = [
   { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl }) },
 ];
 
+const MAX_PASSIVE_ELAPSED_SEC = 4 * 3600;
+const MAX_TAP_EARN_ESTIMATE = 500;
+
 const PHOTO_LEVELS = [
   { level: 1, min: 0, max: 10_000 },
   { level: 2, min: 10_000, max: 100_000 },
@@ -78,6 +81,44 @@ function syncMaxLevel(save) {
   save.maxLevel = Math.max(save.maxLevel || 1, fromBalance);
 }
 
+function totalUpgradeSpend(upgradeLevels) {
+  if (!upgradeLevels) return 0;
+  let total = 0;
+  for (const upgrade of UPGRADES) {
+    const lvl = Math.min(upgrade.maxLevel, Math.max(0, Math.floor(upgradeLevels[upgrade.id] || 0)));
+    for (let i = 0; i < lvl; i++) {
+      total += Math.floor(upgrade.basePrice * Math.pow(upgrade.priceMult, i));
+    }
+  }
+  return total;
+}
+
+function estimateMaxEarnedFromTaps(totalTaps) {
+  const taps = Math.max(0, Math.floor(totalTaps || 0));
+  return taps * MAX_TAP_EARN_ESTIMATE + 10_000;
+}
+
+function mergeUpgradeLevelsSafely(serverSave, incomingLevels) {
+  const result = { ...serverSave.upgradeLevels };
+  if (!incomingLevels || typeof incomingLevels !== 'object') return result;
+
+  const budget = serverSave.totalEarned || 0;
+
+  for (const upgrade of UPGRADES) {
+    const incoming = Math.min(
+      upgrade.maxLevel,
+      Math.max(0, Math.floor(incomingLevels[upgrade.id] || 0))
+    );
+    const current = result[upgrade.id] || 0;
+    const target = Math.max(current, incoming);
+    const trial = { ...result, [upgrade.id]: target };
+    if (totalUpgradeSpend(trial) <= budget) {
+      result[upgrade.id] = target;
+    }
+  }
+  return result;
+}
+
 function mergeUpgradeLevels(...levelObjs) {
   const result = Object.fromEntries(UPGRADES.map((u) => [u.id, 0]));
   for (const obj of levelObjs) {
@@ -126,7 +167,10 @@ function saveNeedsSync(cloud, merged) {
 
 function applyPassive(save, now = Date.now()) {
   const stats = calcStats(save);
-  const elapsed = (now - save.lastPassive) / 1000;
+  const elapsed = Math.min(
+    Math.max(0, (now - save.lastPassive) / 1000),
+    MAX_PASSIVE_ELAPSED_SEC
+  );
   if (elapsed <= 0) return { earned: 0 };
 
   save.lastPassive = now;
@@ -183,6 +227,9 @@ module.exports = {
   getUpgradePrice,
   levelFromBalance,
   syncMaxLevel,
+  totalUpgradeSpend,
+  estimateMaxEarnedFromTaps,
+  mergeUpgradeLevelsSafely,
   mergeSaves,
   saveNeedsSync,
   applyPassive,

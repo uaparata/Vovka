@@ -10,14 +10,22 @@
 <body>
   <div class="admin-wrap">
     <header class="admin-header">
-      <h1>🛡️ Admin Panel</h1>
+      <h1>🛡️ Админ-панель</h1>
       <a href="/" class="back-link">← Игра</a>
     </header>
+
+    <p class="admin-note">Доступ только для email из <code>ADMIN_EMAILS</code> на Railway. Рейтинг сортируется по всему заработанному.</p>
 
     <section class="admin-stats">
       <div class="stat-box">Игроков: <span id="player-count">0</span></div>
       <div class="stat-box">Забанено: <span id="banned-count">0</span></div>
+      <div class="stat-box">Подозрительных: <span id="suspicious-count">0</span></div>
     </section>
+
+    <div class="admin-toolbar">
+      <input id="search-input" class="search-input" type="search" placeholder="Поиск по нику или email…" autocomplete="off">
+      <button id="refresh-btn" class="btn btn-refresh" type="button">Обновить</button>
+    </div>
 
     <div class="table-wrap">
       <table class="admin-table">
@@ -25,7 +33,9 @@
           <tr>
             <th>Игрок</th>
             <th>Баланс</th>
-            <th>Уровень</th>
+            <th>Заработано</th>
+            <th>Тапы</th>
+            <th>Ур.</th>
             <th>⚠️</th>
             <th>Действия</th>
           </tr>

@@ -9,13 +9,14 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('./db');
 const antiCheat = require('./anti-cheat');
+const { withUserLock } = require('./user-lock');
 const {
+  UPGRADES,
   applyPassive,
   applyTap,
   applyBuyUpgrade,
-  defaultSave,
-  mergeSaves,
-  saveNeedsSync,
+  mergeUpgradeLevelsSafely,
+  syncMaxLevel,
 } = require('./game-logic');
 
 const port = Number(process.env.PORT) || 3000;
@@ -256,23 +257,30 @@ async function start() {
 
   app.post('/api/tap', requireAuth, async (req, res) => {
     try {
-      const check = antiCheat.validateTap(req.user.id);
-      if (!check.allowed) {
-        await db.incrementSuspicious(req.user.id);
-        if (check.flagged) {
-          await db.setBanned(req.user.id, true, 'Автокликер');
-          return res.status(403).json({ error: 'banned', reason: 'Автокликер' });
+      await withUserLock(req.user.id, async () => {
+        const check = antiCheat.validateTap(req.user.id);
+        if (!check.allowed) {
+          await db.incrementSuspicious(req.user.id);
+          if (check.flagged) {
+            await db.setBanned(req.user.id, true, 'Автокликер');
+            res.status(403).json({ error: 'banned', reason: 'Автокликер' });
+            return;
+          }
+          res.status(429).json({ error: check.reason, violations: check.violations });
+          return;
         }
-        return res.status(429).json({ error: check.reason, violations: check.violations });
-      }
 
-      const save = await db.getOrCreateSave(req.user.id);
-      applyPassive(save);
-      const result = applyTap(save);
-      if (!result.ok) return res.status(400).json({ error: result.reason });
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        const result = applyTap(save);
+        if (!result.ok) {
+          res.status(400).json({ error: result.reason });
+          return;
+        }
 
-      await db.upsertSave(req.user.id, save);
-      res.json({ save, earned: result.earned });
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, earned: result.earned });
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Tap failed' });
@@ -281,10 +289,18 @@ async function start() {
 
   app.post('/api/tick', requireAuth, async (req, res) => {
     try {
-      const save = await db.getOrCreateSave(req.user.id);
-      applyPassive(save);
-      await db.upsertSave(req.user.id, save);
-      res.json({ save });
+      const tickCheck = antiCheat.validateTick(req.user.id);
+      if (!tickCheck.allowed) {
+        const save = await db.getOrCreateSave(req.user.id);
+        return res.json({ save });
+      }
+
+      await withUserLock(req.user.id, async () => {
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        await db.upsertSave(req.user.id, save);
+        res.json({ save });
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Tick failed' });
@@ -294,12 +310,21 @@ async function start() {
   app.post('/api/buy-upgrade', requireAuth, async (req, res) => {
     try {
       const { upgradeId } = req.body;
-      const save = await db.getOrCreateSave(req.user.id);
-      applyPassive(save);
-      const result = applyBuyUpgrade(save, upgradeId);
-      if (!result.ok) return res.status(400).json({ error: result.reason });
-      await db.upsertSave(req.user.id, save);
-      res.json({ save, price: result.price });
+      if (!UPGRADES.some((u) => u.id === upgradeId)) {
+        return res.status(400).json({ error: 'invalid_upgrade' });
+      }
+
+      await withUserLock(req.user.id, async () => {
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        const result = applyBuyUpgrade(save, upgradeId);
+        if (!result.ok) {
+          res.status(400).json({ error: result.reason });
+          return;
+        }
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, price: result.price });
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Buy failed' });
@@ -313,19 +338,27 @@ async function start() {
     });
   });
 
-  app.post('/api/save/sync', requireAuth, async (req, res) => {
+  app.post('/api/save/sync', requireAuth, (_req, res) => {
+    res.status(403).json({
+      error: 'sync_disabled',
+      message: 'Server-authoritative saves only. Use /api/tap and /api/buy-upgrade.',
+    });
+  });
+
+  app.post('/api/save/migrate', requireAuth, async (req, res) => {
     try {
-      const incoming = req.body || {};
-      const existing = await db.getOrCreateSave(req.user.id);
-      const merged = mergeSaves(existing, incoming);
-      if (!saveNeedsSync(existing, merged) && (existing.totalEarned || 0) >= (merged.totalEarned || 0)) {
-        return res.json({ save: existing, synced: false });
-      }
-      await db.upsertSave(req.user.id, merged);
-      res.json({ save: merged, synced: true });
+      await withUserLock(req.user.id, async () => {
+        const incoming = req.body || {};
+        const save = await db.getOrCreateSave(req.user.id);
+        save.upgradeLevels = mergeUpgradeLevelsSafely(save, incoming.upgradeLevels);
+        applyPassive(save);
+        syncMaxLevel(save);
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, migrated: true });
+      });
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: 'Sync failed' });
+      res.status(500).json({ error: 'Migrate failed' });
     }
   });
 
@@ -403,14 +436,38 @@ async function start() {
 
   app.post('/api/admin/adjust-balance', requireAdmin, async (req, res) => {
     try {
-      const { userId, delta, set } = req.body;
+      const userId = Number(req.body.userId);
+      if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Invalid user' });
+
       let save;
-      if (set !== undefined) save = await db.setBalance(userId, Number(set));
-      else save = await db.adjustBalance(userId, Number(delta) || 0);
-      res.json({ ok: true, balance: save.balance });
+      if (req.body.set !== undefined) save = await db.setBalance(userId, Number(req.body.set));
+      else save = await db.adjustBalance(userId, Number(req.body.delta) || 0);
+
+      if (req.body.setEarned !== undefined) {
+        save = await db.setTotalEarned(userId, Number(req.body.setEarned));
+      }
+
+      res.json({
+        ok: true,
+        balance: save.balance,
+        totalEarned: save.totalEarned,
+      });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Adjust failed' });
+    }
+  });
+
+  app.post('/api/admin/reset', requireAdmin, async (req, res) => {
+    try {
+      const userId = Number(req.body.userId);
+      if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Invalid user' });
+      const save = await db.resetPlayerProgress(userId);
+      antiCheat.resetTrack(userId);
+      res.json({ ok: true, save });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Reset failed' });
     }
   });
 
@@ -439,7 +496,12 @@ async function start() {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Fauck Zini running on ${baseUrl}`);
     console.log(`Asset version: ${ASSET_VERSION}`);
-    if (ADMIN_EMAILS.size) console.log(`Admins: ${[...ADMIN_EMAILS].join(', ')}`);
+    if (ADMIN_EMAILS.size) {
+      console.log(`Admins: ${[...ADMIN_EMAILS].join(', ')}`);
+      console.log(`Admin panel: ${baseUrl}/admin`);
+    } else {
+      console.warn('ADMIN_EMAILS not set — admin panel disabled');
+    }
     console.log(
       process.env.SESSION_SECRET?.trim()
         ? 'Sessions: custom SESSION_SECRET'

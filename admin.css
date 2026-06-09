@@ -8,9 +8,44 @@ body {
 }
 
 .admin-wrap {
-  max-width: 900px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 16px;
+}
+
+.admin-note {
+  font-size: 0.75rem;
+  color: #8b949e;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.admin-note code {
+  color: #fbbf24;
+}
+
+.admin-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  background: #161b22;
+  color: #e6edf3;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #f97316;
 }
 
 .admin-header {
@@ -102,6 +137,17 @@ body {
   background: rgba(239, 68, 68, 0.08);
 }
 
+.cheat-row {
+  background: rgba(251, 191, 36, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.25);
+}
+
+.ban-reason {
+  font-size: 0.65rem;
+  color: #ef4444;
+  margin-top: 2px;
+}
+
 .suspicious {
   color: #ef4444;
   font-weight: 900;
@@ -130,3 +176,5 @@ body {
 .btn-ban { color: #ef4444; }
 .btn-unban { color: #22c55e; }
 .btn-coins { color: #fbbf24; }
+.btn-reset { color: #f87171; }
+.btn-refresh { color: #22c55e; }
