@@ -33,7 +33,19 @@ const PHOTO_LEVELS = [
   { level: 2, min: 10_000, max: 100_000, image: 'assets/level-2.png', name: 'Уличный' },
   { level: 3, min: 100_000, max: 500_000, image: 'assets/level-3.png', name: 'Стиляга' },
   { level: 4, min: 500_000, max: 1_000_000, image: 'assets/level-4.png', name: 'Босс' },
-  { level: 5, min: 1_000_000, max: null, image: 'assets/level-5.png', name: 'Легенда' },
+  { level: 5, min: 1_000_000, max: 2_500_000, image: 'assets/level-5.png', name: 'Спрайт-рок' },
+  { level: 6, min: 2_500_000, max: 5_000_000, image: 'assets/level-6.png', name: 'Шашлычник' },
+  { level: 7, min: 5_000_000, max: 10_000_000, image: 'assets/level-7.png', name: 'Голливуд' },
+  { level: 8, min: 10_000_000, max: 25_000_000, image: 'assets/level-8.png', name: 'На полу' },
+  { level: 9, min: 25_000_000, max: 50_000_000, image: 'assets/level-9.png', name: 'Улыбка' },
+  { level: 10, min: 50_000_000, max: 100_000_000, image: 'assets/level-10.png', name: 'Модник' },
+  { level: 11, min: 100_000_000, max: 250_000_000, image: 'assets/level-11.png', name: 'Доктор' },
+  { level: 12, min: 250_000_000, max: 500_000_000, image: 'assets/level-12.png', name: 'Квартирник' },
+  { level: 13, min: 500_000_000, max: 1_000_000_000, image: 'assets/level-13.png', name: 'Селфи-зум' },
+  { level: 14, min: 1_000_000_000, max: 5_000_000_000, image: 'assets/level-14.png', name: 'Виски Bape' },
+  { level: 15, min: 5_000_000_000, max: 50_000_000_000, image: 'assets/level-15.png', name: 'Дрыхнет' },
+  { level: 16, min: 50_000_000_000, max: 1_000_000_000_000, image: 'assets/level-16.png', name: 'Supreme' },
+  { level: 17, min: 10_000_000_000_000, max: null, image: 'assets/level-17.png', name: 'Легенда' },
 ];
 
 let lastPhotoLevel = 0;
