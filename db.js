@@ -441,7 +441,29 @@ async function getRegisteredUserCount() {
   return fileDb.users.length;
 }
 
-async function getLeaderboard() {
+function isVovaRow(row, vipEmails) {
+  if (!vipEmails?.size) return false;
+  const email = row.email?.trim().toLowerCase();
+  return !!(email && vipEmails.has(email));
+}
+
+function mapLeaderboardRow(r, rank, vipEmails) {
+  const vova = isVovaRow(r, vipEmails);
+  return {
+    rank,
+    id: r.id,
+    name: vova ? 'Вова Зинченко' : userDisplayName(r),
+    avatar: publicAvatarUrl(r),
+    balance: Number(r.balance ?? 0),
+    totalEarned: Number(r.total_earned ?? r.totalEarned ?? 0),
+    maxLevel: r.max_level ?? r.maxLevel ?? 1,
+    totalTaps: r.total_taps ?? r.totalTaps ?? 0,
+    banned: !!r.banned,
+    isVova: vova,
+  };
+}
+
+async function getLeaderboard(vipEmails) {
   if (mode === 'pg') {
     const res = await pool.query(
       `SELECT u.id, u.name, u.nickname, u.email, u.custom_avatar, u.avatar, u.avatar_version, u.banned,
@@ -453,35 +475,22 @@ async function getLeaderboard() {
        LEFT JOIN saves s ON s.user_id = u.id
        ORDER BY COALESCE(s.total_earned, 0) DESC, u.created_at ASC`
     );
-    return res.rows.map((r, i) => ({
-      rank: i + 1,
-      id: r.id,
-      name: userDisplayName(r),
-      avatar: publicAvatarUrl(r),
-      balance: Number(r.balance),
-      totalEarned: Number(r.total_earned),
-      maxLevel: r.max_level || 1,
-      totalTaps: r.total_taps,
-      banned: !!r.banned,
-    }));
+    return res.rows.map((r, i) => mapLeaderboardRow(r, i + 1, vipEmails));
   }
 
-  const rows = fileDb.users.map((u) => {
+  const rows = fileDb.users
+    .map((u) => {
       const s = fileDb.saves.find((x) => x.user_id === u.id);
-      const balance = s?.balance || 0;
       return {
-        id: u.id,
-        name: userDisplayName(u),
-        avatar: publicAvatarUrl(u),
-        balance,
-        totalEarned: s?.total_earned || 0,
-        maxLevel: s?.max_level || 1,
-        totalTaps: s?.total_taps || 0,
-        banned: !!u.banned,
+        ...u,
+        balance: s?.balance || 0,
+        total_earned: s?.total_earned || 0,
+        max_level: s?.max_level || 1,
+        total_taps: s?.total_taps || 0,
       };
     })
-    .sort((a, b) => b.totalEarned - a.totalEarned)
-    .map((r, i) => ({ rank: i + 1, ...r }));
+    .sort((a, b) => (b.total_earned || 0) - (a.total_earned || 0))
+    .map((r, i) => mapLeaderboardRow(r, i + 1, vipEmails));
 
   return rows;
 }

@@ -329,8 +329,19 @@ function showUserAuth(user) {
     rememberUser({ ...user, avatar: user.avatar || avatar });
   }
 
-  const label = user.displayName || user.nickname || user.name || user.email || 'Аккаунт';
-  $('#user-chip').title = label;
+  const chip = $('#user-chip');
+  if (user.isVova) {
+    chip?.classList.add('user-chip-vova');
+    chip?.setAttribute('aria-label', 'Вова Зинченко — герой игры');
+  } else {
+    chip?.classList.remove('user-chip-vova');
+    chip?.removeAttribute('aria-label');
+  }
+
+  const label = user.isVova
+    ? 'Вова Зинченко — герой Fauck Zini ✓'
+    : user.displayName || user.nickname || user.name || user.email || 'Аккаунт';
+  if (chip) chip.title = label;
   const nickInput = $('#nickname-input');
   if (nickInput) nickInput.value = user.nickname || '';
   if (user.isAdmin) $('#admin-link')?.classList.remove('hidden');
@@ -341,7 +352,11 @@ function showUserAuth(user) {
 
 function imgAltFix(user) {
   const img = $('#user-avatar');
-  if (img) img.alt = user.displayName || user.nickname || user.name || '';
+  if (img) {
+    img.alt = user.isVova
+      ? 'Вова Зинченко'
+      : user.displayName || user.nickname || user.name || '';
+  }
 }
 
 async function checkAuthConfig() {
@@ -1002,7 +1017,8 @@ function paintLeaderboard(players, total, myRank) {
 
     const card = document.createElement('div');
     card.className = 'lb-card';
-    if (p.rank === 1) card.classList.add('lb-gold');
+    if (p.isVova) card.classList.add('lb-vova');
+    else if (p.rank === 1) card.classList.add('lb-gold');
     if (me) {
       card.classList.add('lb-me');
       card.id = 'lb-me';
@@ -1010,28 +1026,45 @@ function paintLeaderboard(players, total, myRank) {
 
     const rank = document.createElement('span');
     rank.className = 'lb-rank';
-    rank.textContent = `#${p.rank}`;
+    rank.textContent = p.isVova ? '🔥' : `#${p.rank}`;
+
+    const avatarWrap = document.createElement('div');
+    avatarWrap.className = 'lb-avatar-wrap';
+    if (p.isVova) {
+      const fire = document.createElement('span');
+      fire.className = 'lb-vova-fire';
+      fire.setAttribute('aria-hidden', 'true');
+      avatarWrap.appendChild(fire);
+    }
 
     if (p.avatar) {
       const img = document.createElement('img');
       img.className = 'lb-avatar';
       img.src = p.avatar;
-      img.alt = '';
-      card.appendChild(rank);
-      card.appendChild(img);
+      img.alt = p.isVova ? 'Вова Зинченко' : '';
+      avatarWrap.appendChild(img);
     } else {
       const ph = document.createElement('span');
       ph.className = 'lb-avatar-ph';
-      ph.textContent = '💪';
-      card.appendChild(rank);
-      card.appendChild(ph);
+      ph.textContent = p.isVova ? '🔥' : '💪';
+      avatarWrap.appendChild(ph);
     }
+
+    card.appendChild(rank);
+    card.appendChild(avatarWrap);
 
     const info = document.createElement('div');
     info.className = 'lb-info';
     const name = document.createElement('span');
     name.className = 'lb-name';
     name.textContent = p.name || 'Игрок';
+    if (p.isVova) {
+      const tick = document.createElement('span');
+      tick.className = 'lb-vova-tick';
+      tick.title = 'Верифицирован — это Вова лично';
+      tick.textContent = '✓';
+      name.appendChild(tick);
+    }
     if (me) {
       const badge = document.createElement('span');
       badge.className = 'lb-you-badge';
@@ -1040,7 +1073,12 @@ function paintLeaderboard(players, total, myRank) {
     }
     const level = document.createElement('span');
     level.className = 'lb-level';
-    level.textContent = `Ур. ${p.maxLevel}`;
+    if (p.isVova) {
+      level.className = 'lb-level lb-vova-tag';
+      level.textContent = `Герой игры · место #${p.rank} · Ур. ${p.maxLevel}`;
+    } else {
+      level.textContent = `Ур. ${p.maxLevel}`;
+    }
     info.appendChild(name);
     info.appendChild(level);
 

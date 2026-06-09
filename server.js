@@ -46,11 +46,18 @@ function sendHtml(res, filename) {
   res.type('html').send(html);
 }
 
-const ADMIN_EMAILS = new Set(
-  (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
+function parseEmailSet(raw) {
+  return new Set(
+    (raw || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+const ADMIN_EMAILS = parseEmailSet(process.env.ADMIN_EMAILS);
+const VIP_EMAILS = parseEmailSet(
+  process.env.VIP_EMAILS || 'volodya22788@gmail.com'
 );
 
 const PLACEHOLDER_IDS = new Set([
@@ -71,6 +78,12 @@ function isAdmin(user) {
   if (!ADMIN_EMAILS.size) return false;
   const email = user?.email?.trim().toLowerCase();
   return !!email && ADMIN_EMAILS.has(email);
+}
+
+function isVova(user) {
+  if (!VIP_EMAILS.size) return false;
+  const email = user?.email?.trim().toLowerCase();
+  return !!email && VIP_EMAILS.has(email);
 }
 
 const apiRateLimit = createRateLimiter({
@@ -296,6 +309,10 @@ async function start() {
         banned: user.banned,
       };
       if (isAdmin(user)) payload.isAdmin = true;
+      if (isVova(user)) {
+        payload.isVova = true;
+        payload.displayName = 'Вова Зинченко';
+      }
       res.json(payload);
     } catch (err) {
       console.error(err);
@@ -322,7 +339,7 @@ async function start() {
 
   app.get('/api/leaderboard', async (req, res) => {
     try {
-      const players = await db.getLeaderboard();
+      const players = await db.getLeaderboard(VIP_EMAILS);
       const myId = req.user?.id != null ? Number(req.user.id) : null;
       let myRank = null;
       const enriched = players.map((p) => {
@@ -330,7 +347,10 @@ async function start() {
         if (isMe) myRank = p.rank;
         return { ...p, isMe };
       });
-      res.json({ players: enriched, total: enriched.length, myRank });
+      const vovaPlayers = enriched.filter((p) => p.isVova);
+      const others = enriched.filter((p) => !p.isVova);
+      const ordered = [...vovaPlayers, ...others];
+      res.json({ players: ordered, total: enriched.length, myRank });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to load leaderboard' });
@@ -640,6 +660,9 @@ async function start() {
       console.log(`Admin panel enabled (${ADMIN_EMAILS.size} email(s)) → ${baseUrl}/admin`);
     } else {
       console.warn('ADMIN_EMAILS not set — admin panel disabled');
+    }
+    if (VIP_EMAILS.size) {
+      console.log(`VIP player(s): ${VIP_EMAILS.size} email(s) configured`);
     }
     console.log(
       process.env.SESSION_SECRET?.trim()
