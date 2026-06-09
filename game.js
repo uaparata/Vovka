@@ -127,7 +127,8 @@ const defaultState = () => ({
 let state = defaultState();
 let currentUser = null;
 let isAdmin = false;
-let tapPending = false;
+const tapQueue = [];
+let tapQueueRunning = false;
 let leaderboardPollTimer = null;
 let sessionRecoveryInProgress = false;
 
@@ -741,35 +742,72 @@ function playTapAnim(e, earned) {
   spawnFloat(x, y, earned);
 }
 
-async function tap(e) {
-  if (tapPending) return;
+function enqueueTap(e) {
+  tapQueue.push(e);
+  const preview = calcStats().perTap;
+  playTapAnim(e, preview);
+  drainTapQueue();
+}
 
-  if (currentUser) {
-    tapPending = true;
+async function drainTapQueue() {
+  if (tapQueueRunning) return;
+  tapQueueRunning = true;
+
+  while (tapQueue.length > 0) {
+    const e = tapQueue.shift();
+    const ok = await sendTapToServer(e);
+    if (!ok) break;
+  }
+
+  tapQueueRunning = false;
+  if (tapQueue.length > 0) drainTapQueue();
+}
+
+async function sendTapToServer(e, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch('/api/tap', { method: 'POST', credentials: 'include' });
       if (res.status === 403) {
         const data = await res.json();
         alert(`Заблокировано: ${data.reason || 'читы'}`);
         window.location.reload();
-        return;
+        return false;
       }
-      if (res.status === 429) return;
+      if (res.status === 429) {
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 50 + attempt * 35));
+          continue;
+        }
+        tapQueue.unshift(e);
+        await new Promise((r) => setTimeout(r, 100));
+        return false;
+      }
       if (res.status === 401) {
         const ok = await recoverSession();
-        if (ok) return tap(e);
-        return;
+        if (ok) continue;
+        return false;
       }
-      if (!res.ok) return;
+      if (!res.ok) return true;
       const data = await res.json();
       applySaveData(data.save);
-      playTapAnim(e, data.earned);
       render();
       saveState();
       refreshLeaderboardIfActive();
-    } finally {
-      tapPending = false;
+      return true;
+    } catch (_) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 80));
+        continue;
+      }
+      return true;
     }
+  }
+  return true;
+}
+
+async function tap(e) {
+  if (currentUser) {
+    enqueueTap(e);
     return;
   }
 
@@ -1073,7 +1111,7 @@ function initTap() {
       active = false;
       const dx = Math.abs(e.clientX - startX);
       const dy = Math.abs(e.clientY - startY);
-      if (dx < 12 && dy < 12) tap(e);
+      if (dx < 16 && dy < 16) tap(e);
     },
     { passive: true }
   );
