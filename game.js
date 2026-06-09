@@ -84,11 +84,11 @@ const UPGRADES = [
     id: 'earbuds',
     name: 'Наушники',
     icon: '🎧',
-    desc: '+50 к макс. энергии',
+    desc: '+12 к макс. энергии',
     basePrice: 800,
     priceMult: 1.8,
     maxLevel: 20,
-    effect: (lvl) => ({ maxEnergy: lvl * 50 }),
+    effect: (lvl) => ({ maxEnergy: lvl * 12 }),
   },
   {
     id: 'ring',
@@ -108,13 +108,13 @@ const UPGRADES = [
     basePrice: 1500,
     priceMult: 2,
     maxLevel: 15,
-    effect: (lvl) => ({ energyRegen: lvl }),
+    effect: (lvl) => ({ energyRegen: lvl * 0.1 }),
   },
 ];
 
 const defaultState = () => ({
   balance: 0,
-  energy: 1000,
+  energy: 320,
   totalTaps: 0,
   totalEarned: 0,
   maxLevel: 1,
@@ -171,7 +171,7 @@ function mergeSaveStates(...saves) {
   const merged = {
     ...defaultState(),
     balance: Math.max(...valid.map((s) => s.balance || 0)),
-    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1000),
+    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 320),
     totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
     totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
     maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
@@ -214,7 +214,7 @@ function applySaveData(data) {
   state = {
     ...defaultState(),
     balance: data.balance ?? 0,
-    energy: data.energy ?? 1000,
+    energy: data.energy ?? 320,
     totalTaps: data.totalTaps ?? 0,
     totalEarned: data.totalEarned ?? 0,
     maxLevel: data.maxLevel ?? 1,
@@ -232,7 +232,13 @@ function setSyncStatus(_status) {}
 
 function saveState() {
   state.lastSave = Date.now();
-  localStorage.setItem(storageKey(currentUser?.id), JSON.stringify(state));
+  const userId = currentUser?.id ?? getLastUserId();
+  const key = userId ? storageKey(userId) : STORAGE_GUEST;
+  localStorage.setItem(key, JSON.stringify(state));
+}
+
+function persistProgress() {
+  saveState();
 }
 
 function showGuestAuth() {
@@ -327,22 +333,16 @@ function initLogin() {
   });
 }
 
-async function migrateLocalUpgrades() {
-  const userId = currentUser.id;
-  const guestLocal = loadLocalState(null);
-  const userLocal = loadLocalState(userId);
-  const bestLocal = mergeSaveStates(guestLocal, userLocal);
-
-  const res = await fetch('/api/save/migrate', {
+async function reconcileSaveToServer(localPayload) {
+  const res = await fetch('/api/save/reconcile', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ upgradeLevels: bestLocal.upgradeLevels }),
+    body: JSON.stringify(localPayload),
   });
-  if (!res.ok) return false;
+  if (!res.ok) return null;
   const data = await res.json();
-  if (data.save) applySaveData(data.save);
-  return true;
+  return data.save || null;
 }
 
 async function loadCloudSave() {
@@ -354,10 +354,12 @@ async function loadCloudSave() {
   const bestLocal = mergeSaveStates(guestLocal, userLocal);
 
   try {
-    const res = await fetch('/api/save', { credentials: 'include' });
+    const res = await fetch('/api/save', { credentials: 'include', cache: 'no-store' });
     if (res.status === 401) {
       const recovered = await recoverSession();
       if (recovered) return loadCloudSave();
+      applySaveData(bestLocal);
+      saveState();
       return;
     }
     if (!res.ok) {
@@ -367,10 +369,16 @@ async function loadCloudSave() {
     }
 
     const data = await res.json();
-    applySaveData(data.save || defaultState());
+    const cloud = data.save || null;
+    const merged = mergeSaveStates(bestLocal, cloud);
+    applySaveData(merged);
     saveState();
-    await migrateLocalUpgrades();
-    saveState();
+
+    const reconciled = await reconcileSaveToServer(getSavePayload());
+    if (reconciled) {
+      applySaveData(reconciled);
+      saveState();
+    }
   } catch (_) {
     applySaveData(bestLocal);
     saveState();
@@ -428,6 +436,8 @@ async function recoverSession() {
         rememberUser(user);
         isAdmin = user.isAdmin;
         showUserAuth(user);
+        await loadCloudSave();
+        render();
         return true;
       }
       await new Promise((r) => setTimeout(r, 700));
@@ -464,10 +474,12 @@ async function initAuth() {
     saveState();
   } else {
     applySaveData(loadLocalState(null));
+    saveState();
   }
 
   if (lastId && !sessionStorage.getItem(SILENT_AUTH_TRIED)) {
     sessionStorage.setItem(SILENT_AUTH_TRIED, '1');
+    saveState();
     window.location.href = '/auth/google/silent';
     return;
   }
@@ -516,10 +528,10 @@ function getUpgradePrice(upgrade) {
 function calcStats() {
   let perTap = 1;
   let perHour = 0;
-  let maxEnergy = 1000;
+  let maxEnergy = 320;
   let tapMult = 1;
   let hourMult = 1;
-  let energyRegen = 1;
+  let energyRegen = 0.18;
 
   for (const upgrade of UPGRADES) {
     const lvl = state.upgradeLevels[upgrade.id];
@@ -742,10 +754,25 @@ function playTapAnim(e, earned) {
   spawnFloat(x, y, earned);
 }
 
+function applyOptimisticTap() {
+  const stats = calcStats();
+  if (state.energy < 1) return null;
+  state.energy -= 1;
+  const earned = stats.perTap;
+  state.balance += earned;
+  state.totalTaps += 1;
+  state.totalEarned += earned;
+  syncMaxLevel();
+  saveState();
+  return earned;
+}
+
 function enqueueTap(e) {
+  const earned = applyOptimisticTap();
+  if (earned == null) return;
+  playTapAnim(e, earned);
+  render();
   tapQueue.push(e);
-  const preview = calcStats().perTap;
-  playTapAnim(e, preview);
   drainTapQueue();
 }
 
@@ -1167,8 +1194,29 @@ function initOfflineProgress() {
   state.lastPassive = now;
 }
 
+async function ensureLatestAssets() {
+  try {
+    const res = await fetch('/api/config', { cache: 'no-store', credentials: 'include' });
+    if (!res.ok) return true;
+    const { assetVersion } = await res.json();
+    if (!assetVersion) return true;
+    const scriptSrc = document.querySelector('script[src*="game.js"]')?.src || '';
+    const loadedV = scriptSrc.match(/[?&]v=([^&]+)/)?.[1];
+    if (loadedV && loadedV !== assetVersion) {
+      const key = `asset-${assetVersion}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        location.reload();
+        return false;
+      }
+    }
+  } catch (_) {}
+  return true;
+}
+
 async function boot() {
   handleAuthRedirect();
+  if (!(await ensureLatestAssets())) return;
   initTabs();
   initTap();
   initLogin();
@@ -1210,9 +1258,23 @@ async function boot() {
     }
   }, 5000);
 
+  window.addEventListener('beforeunload', persistProgress);
+  window.addEventListener('pagehide', persistProgress);
+
+  setInterval(() => {
+    if (currentUser || state.totalTaps > 0 || state.balance > 0) {
+      saveState();
+    }
+  }, 2000);
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       saveState();
+      if (currentUser) {
+        fetch('/api/tick', { method: 'POST', credentials: 'include', keepalive: true }).catch(
+          () => {}
+        );
+      }
     }
     if (document.visibilityState === 'visible' && currentUser) {
       fetchMe(4).then(async (user) => {

@@ -16,6 +16,7 @@ const {
   applyTap,
   applyBuyUpgrade,
   mergeUpgradeLevelsSafely,
+  reconcileSaves,
   syncMaxLevel,
 } = require('./game-logic');
 
@@ -30,7 +31,7 @@ const ASSET_VERSION =
 function sendHtml(res, filename) {
   const filePath = path.join(__dirname, filename);
   let html = fs.readFileSync(filePath, 'utf8');
-  html = html.replace(/v=\d+/g, `v=${ASSET_VERSION}`);
+  html = html.replace(/v=[^"'\s>]+/g, `v=${ASSET_VERSION}`);
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.set('Pragma', 'no-cache');
   res.type('html').send(html);
@@ -391,6 +392,21 @@ async function start() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Migrate failed' });
+    }
+  });
+
+  app.post('/api/save/reconcile', requireAuth, async (req, res) => {
+    try {
+      await withUserLock(req.user.id, async () => {
+        const server = await db.getOrCreateSave(req.user.id);
+        const merged = reconcileSaves(server, req.body || {});
+        applyPassive(merged);
+        await db.upsertSave(req.user.id, merged);
+        res.json({ save: merged, reconciled: true });
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Reconcile failed' });
     }
   });
 
