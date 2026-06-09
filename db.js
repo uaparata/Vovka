@@ -73,6 +73,7 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS peak_balance DOUBLE PRECISION DEFAULT 0`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_version INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT`);
+    await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS last_energy_regen BIGINT DEFAULT 0`);
     await pool.query(`
       INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
       SELECT u.id, 0, 320, 0, 0, '{}', 0, 0, 1, 0
@@ -103,6 +104,7 @@ function rowToSave(row) {
     totalEarned: Number(row.total_earned),
     upgradeLevels: levels,
     lastPassive: Number(row.last_passive),
+    lastEnergyRegen: Number(row.last_energy_regen) || Number(row.last_passive) || 0,
     lastSave: Number(row.last_save),
     maxLevel: row.max_level ?? 1,
     peakBalance: row.peak_balance ?? 0,
@@ -241,6 +243,7 @@ async function upsertSave(userId, save) {
     total_earned: save.totalEarned ?? 0,
     upgrade_levels: levels,
     last_passive: save.lastPassive ?? Date.now(),
+    last_energy_regen: save.lastEnergyRegen ?? save.lastPassive ?? Date.now(),
     last_save: save.lastSave ?? Date.now(),
     max_level: save.maxLevel ?? 1,
     peak_balance: save.peakBalance ?? 0,
@@ -249,8 +252,8 @@ async function upsertSave(userId, save) {
 
   if (mode === 'pg') {
     await pool.query(
-      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_energy_regen, last_save, max_level, peak_balance)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (user_id) DO UPDATE SET
          balance = EXCLUDED.balance,
          energy = EXCLUDED.energy,
@@ -258,6 +261,7 @@ async function upsertSave(userId, save) {
          total_earned = EXCLUDED.total_earned,
          upgrade_levels = EXCLUDED.upgrade_levels,
          last_passive = EXCLUDED.last_passive,
+         last_energy_regen = EXCLUDED.last_energy_regen,
          last_save = EXCLUDED.last_save,
          max_level = GREATEST(saves.max_level, EXCLUDED.max_level),
          peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance),
@@ -270,6 +274,7 @@ async function upsertSave(userId, save) {
         payload.total_earned,
         JSON.stringify(levels),
         payload.last_passive,
+        payload.last_energy_regen,
         payload.last_save,
         payload.max_level,
         payload.peak_balance,

@@ -12,6 +12,7 @@ const MAX_PASSIVE_ELAPSED_SEC = 4 * 3600;
 const MAX_TAP_EARN_ESTIMATE = 500;
 const BASE_MAX_ENERGY = 320;
 const BASE_ENERGY_REGEN = 0.18;
+const ENERGY_REGEN_INTERVAL_SEC = 12;
 
 const PHOTO_LEVELS = [
   { level: 1, min: 0, max: 10_000 },
@@ -32,7 +33,32 @@ function defaultSave() {
     upgradeLevels: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
     lastSave: Date.now(),
     lastPassive: Date.now(),
+    lastEnergyRegen: Date.now(),
   };
+}
+
+function energyChunkSize(stats) {
+  return Math.max(1, Math.floor(stats.energyRegen * ENERGY_REGEN_INTERVAL_SEC));
+}
+
+function applyEnergyRegen(save, stats, now = Date.now()) {
+  const last = save.lastEnergyRegen ?? save.lastPassive ?? now;
+  let elapsed = Math.max(0, (now - last) / 1000);
+  elapsed = Math.min(elapsed, MAX_PASSIVE_ELAPSED_SEC);
+  const chunks = Math.floor(elapsed / ENERGY_REGEN_INTERVAL_SEC);
+  if (chunks <= 0) return 0;
+
+  const add = energyChunkSize(stats) * chunks;
+  save.energy = Math.min(stats.maxEnergy, save.energy + add);
+  save.lastEnergyRegen = last + chunks * ENERGY_REGEN_INTERVAL_SEC * 1000;
+  return add;
+}
+
+function secondsUntilEnergyChunk(save, now = Date.now()) {
+  const last = save.lastEnergyRegen ?? save.lastPassive ?? now;
+  const elapsed = Math.max(0, (now - last) / 1000);
+  const rem = elapsed % ENERGY_REGEN_INTERVAL_SEC;
+  return rem <= 0 ? ENERGY_REGEN_INTERVAL_SEC : Math.ceil(ENERGY_REGEN_INTERVAL_SEC - rem);
 }
 
 function calcStats(save) {
@@ -152,6 +178,7 @@ function mergeSaves(...saves) {
     ),
     upgradeLevels: mergeUpgradeLevels(...valid.map((s) => s.upgradeLevels)),
     lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
+    lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
   };
   syncMaxLevel(merged);
@@ -194,6 +221,7 @@ function reconcileSaves(server, client) {
     energy: Math.max(srv.energy || 0, client.energy || 0),
     upgradeLevels: client.upgradeLevels,
     lastPassive: Math.max(srv.lastPassive || 0, client.lastPassive || 0),
+    lastEnergyRegen: Math.max(srv.lastEnergyRegen || 0, client.lastEnergyRegen || 0),
     maxLevel: Math.max(srv.maxLevel || 1, client.maxLevel || 1),
     peakBalance: Math.max(srv.peakBalance || 0, client.peakBalance || 0),
   };
@@ -219,8 +247,7 @@ function applyPassive(save, now = Date.now()) {
     save.balance += earned;
     save.totalEarned += earned;
   }
-  const regen = stats.energyRegen * elapsed;
-  save.energy = Math.min(stats.maxEnergy, save.energy + regen);
+  applyEnergyRegen(save, stats, now);
   if (save.energy > stats.maxEnergy) save.energy = stats.maxEnergy;
   syncMaxLevel(save);
   save.lastSave = now;
@@ -261,8 +288,12 @@ function applyBuyUpgrade(save, upgradeId) {
 module.exports = {
   UPGRADES,
   PHOTO_LEVELS,
+  ENERGY_REGEN_INTERVAL_SEC,
   defaultSave,
   calcStats,
+  energyChunkSize,
+  applyEnergyRegen,
+  secondsUntilEnergyChunk,
   getUpgradePrice,
   levelFromBalance,
   syncMaxLevel,

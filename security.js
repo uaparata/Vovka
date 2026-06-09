@@ -26,6 +26,9 @@ function createRateLimiter({ windowMs, max, name, skip }) {
     bucket.count += 1;
     if (bucket.count > max) {
       res.set('Retry-After', String(Math.ceil(windowMs / 1000)));
+      if (req.method === 'GET' && req.accepts('html')) {
+        return res.redirect('/?auth=rate_limited');
+      }
       return res.status(429).json({ error: 'rate_limited' });
     }
     next();

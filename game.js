@@ -2,6 +2,7 @@ const STORAGE_GUEST = 'fauckzini_save_guest';
 const STORAGE_LEGACY = 'fauckzini_save';
 const LAST_USER_KEY = 'fauckzini_last_user_id';
 const SILENT_AUTH_TRIED = 'fauckzini_silent_auth_tried';
+const ENERGY_REGEN_INTERVAL_SEC = 12;
 
 function storageKey(userId) {
   return userId ? `fauckzini_save_u_${userId}` : STORAGE_GUEST;
@@ -104,7 +105,7 @@ const UPGRADES = [
     id: 'jacket',
     name: 'Куртка на плече',
     icon: '🧥',
-    desc: 'Энергия восстанавливается быстрее',
+    desc: 'Больше энергии за одно восстановление',
     basePrice: 1500,
     priceMult: 2,
     maxLevel: 15,
@@ -122,6 +123,7 @@ const defaultState = () => ({
   upgradeLevels: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
   lastSave: Date.now(),
   lastPassive: Date.now(),
+  lastEnergyRegen: Date.now(),
 });
 
 let state = defaultState();
@@ -181,10 +183,35 @@ function mergeSaveStates(...saves) {
     ),
     upgradeLevels,
     lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
+    lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
   };
   syncMaxLevel(merged);
   return merged;
+}
+
+function energyChunkSize(stats) {
+  return Math.max(1, Math.floor(stats.energyRegen * ENERGY_REGEN_INTERVAL_SEC));
+}
+
+function applyEnergyRegen(stats, now = Date.now()) {
+  const last = state.lastEnergyRegen ?? state.lastPassive ?? now;
+  let elapsed = Math.max(0, (now - last) / 1000);
+  elapsed = Math.min(elapsed, 4 * 3600);
+  const chunks = Math.floor(elapsed / ENERGY_REGEN_INTERVAL_SEC);
+  if (chunks <= 0) return 0;
+
+  const add = energyChunkSize(stats) * chunks;
+  state.energy = Math.min(stats.maxEnergy, state.energy + add);
+  state.lastEnergyRegen = last + chunks * ENERGY_REGEN_INTERVAL_SEC * 1000;
+  return add;
+}
+
+function secondsUntilEnergyChunk(now = Date.now()) {
+  const last = state.lastEnergyRegen ?? state.lastPassive ?? now;
+  const elapsed = Math.max(0, (now - last) / 1000);
+  const rem = elapsed % ENERGY_REGEN_INTERVAL_SEC;
+  return rem <= 0 ? ENERGY_REGEN_INTERVAL_SEC : Math.ceil(ENERGY_REGEN_INTERVAL_SEC - rem);
 }
 
 function saveNeedsSync(cloud, merged) {
@@ -206,6 +233,7 @@ function getSavePayload() {
     peakBalance: state.peakBalance,
     upgradeLevels: state.upgradeLevels,
     lastPassive: state.lastPassive,
+    lastEnergyRegen: state.lastEnergyRegen,
     lastSave: state.lastSave,
   };
 }
@@ -221,6 +249,7 @@ function applySaveData(data) {
     peakBalance: data.peakBalance ?? 0,
     upgradeLevels: { ...defaultState().upgradeLevels, ...(data.upgradeLevels || {}) },
     lastPassive: data.lastPassive ?? Date.now(),
+    lastEnergyRegen: data.lastEnergyRegen ?? data.lastPassive ?? Date.now(),
     lastSave: data.lastSave ?? Date.now(),
   };
   syncMaxLevel();
@@ -512,6 +541,13 @@ function handleAuthRedirect() {
   if (params.get('auth') === 'banned') {
     alert('Аккаунт заблокирован администратором.');
   }
+  if (params.get('auth') === 'rate_limited') {
+    alert('Слишком много попыток входа. Подожди минуту и нажми G для входа.');
+    sessionStorage.removeItem(SILENT_AUTH_TRIED);
+  }
+  if (params.get('auth') === 'need_login') {
+    sessionStorage.setItem(SILENT_AUTH_TRIED, '1');
+  }
   if (params.get('auth') === 'success') {
     sessionStorage.removeItem(SILENT_AUTH_TRIED);
   }
@@ -655,7 +691,14 @@ function render() {
   const energyPct = (state.energy / stats.maxEnergy) * 100;
   $('#energy-fill').style.width = energyPct + '%';
   $('#energy-fill').classList.toggle('low', energyPct < 20);
-  $('#energy-text').textContent = `${Math.floor(state.energy)} / ${stats.maxEnergy}`;
+  const energyLine = `${Math.floor(state.energy)} / ${stats.maxEnergy}`;
+  if (state.energy < stats.maxEnergy - 0.5) {
+    const chunk = energyChunkSize(stats);
+    const eta = secondsUntilEnergyChunk();
+    $('#energy-text').textContent = `${energyLine} · +${chunk} через ${eta}с`;
+  } else {
+    $('#energy-text').textContent = energyLine;
+  }
 
   $('#stat-taps').textContent = formatNum(state.totalTaps);
   $('#stat-earned').textContent = formatNum(state.totalEarned);
@@ -811,8 +854,11 @@ async function sendTapToServer(e, retries = 2) {
       }
       if (res.status === 401) {
         const ok = await recoverSession();
-        if (ok) continue;
-        return false;
+        if (!ok) {
+          await handleSessionLost();
+          return false;
+        }
+        continue;
       }
       if (!res.ok) return true;
       const data = await res.json();
@@ -864,8 +910,7 @@ function applyPassive() {
     state.totalEarned += earned;
   }
 
-  const regen = stats.energyRegen * elapsed;
-  state.energy = Math.min(stats.maxEnergy, state.energy + regen);
+  applyEnergyRegen(stats, now);
 
   render();
 }
@@ -1184,8 +1229,7 @@ function initOfflineProgress() {
   if (offline > 5) {
     const stats = calcStats();
     const passive = (stats.perHour / 3600) * offline;
-    const regen = stats.energyRegen * offline;
-    state.energy = Math.min(stats.maxEnergy, state.energy + regen);
+    applyEnergyRegen(stats, now);
     if (passive > 0) {
       state.balance += passive;
       state.totalEarned += passive;
@@ -1240,7 +1284,8 @@ async function boot() {
       try {
         const res = await fetch('/api/tick', { method: 'POST', credentials: 'include' });
         if (res.status === 401) {
-          await recoverSession();
+          const ok = await recoverSession();
+          if (!ok) await handleSessionLost();
           return;
         }
         if (res.ok) {
@@ -1257,6 +1302,16 @@ async function boot() {
       render();
     }
   }, 5000);
+
+  setInterval(() => {
+    const stats = calcStats();
+    if (state.energy >= stats.maxEnergy - 0.5) return;
+    const energyLine = `${Math.floor(state.energy)} / ${stats.maxEnergy}`;
+    const chunk = energyChunkSize(stats);
+    const eta = secondsUntilEnergyChunk();
+    const el = $('#energy-text');
+    if (el) el.textContent = `${energyLine} · +${chunk} через ${eta}с`;
+  }, 1000);
 
   window.addEventListener('beforeunload', persistProgress);
   window.addEventListener('pagehide', persistProgress);

@@ -246,9 +246,8 @@ async function start() {
   });
 
   app.use('/api', apiRateLimit);
-  app.use('/auth', authRateLimit);
 
-  app.get('/auth/google', (req, res, next) => {
+  app.get('/auth/google', authRateLimit, (req, res, next) => {
     if (!isGoogleConfigured()) return res.redirect('/?auth=not_configured');
     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
   });
@@ -274,7 +273,7 @@ async function start() {
     }
   );
 
-  app.post('/auth/logout', (req, res) => {
+  app.post('/auth/logout', authRateLimit, (req, res) => {
     if (req.user) antiCheat.resetTrack(req.user.id);
     req.logout((err) => {
       if (err) return res.status(500).json({ error: 'Logout failed' });
