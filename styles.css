@@ -941,6 +941,55 @@ body {
   color: var(--gold);
 }
 
+.support-block {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.support-title {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.support-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.support-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+  color: #fff;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.support-btn:active {
+  transform: scale(0.97);
+}
+
+.support-btn-ig {
+  background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af);
+}
+
+.support-btn-tg {
+  background: linear-gradient(135deg, #37aee2, #1e96c8);
+}
+
 .footer-note {
   text-align: center;
   font-size: 0.75rem;

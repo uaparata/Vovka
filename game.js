@@ -2,7 +2,6 @@ const STORAGE_GUEST = 'fauckzini_save_guest';
 const STORAGE_LEGACY = 'fauckzini_save';
 const LAST_USER_KEY = 'fauckzini_last_user_id';
 const SILENT_AUTH_TRIED = 'fauckzini_silent_auth_tried';
-const ENERGY_REGEN_INTERVAL_SEC = 15;
 
 function storageKey(userId) {
   return userId ? `fauckzini_save_u_${userId}` : STORAGE_GUEST;
@@ -34,19 +33,7 @@ const PHOTO_LEVELS = [
   { level: 2, min: 10_000, max: 100_000, image: 'assets/level-2.png', name: 'Уличный' },
   { level: 3, min: 100_000, max: 500_000, image: 'assets/level-3.png', name: 'Стиляга' },
   { level: 4, min: 500_000, max: 1_000_000, image: 'assets/level-4.png', name: 'Босс' },
-  { level: 5, min: 1_000_000, max: 2_500_000, image: 'assets/level-5.png', name: 'Спрайт-рок' },
-  { level: 6, min: 2_500_000, max: 5_000_000, image: 'assets/level-6.png', name: 'Шашлычник' },
-  { level: 7, min: 5_000_000, max: 10_000_000, image: 'assets/level-7.png', name: 'Голливуд' },
-  { level: 8, min: 10_000_000, max: 25_000_000, image: 'assets/level-8.png', name: 'На полу' },
-  { level: 9, min: 25_000_000, max: 50_000_000, image: 'assets/level-9.png', name: 'Улыбка' },
-  { level: 10, min: 50_000_000, max: 100_000_000, image: 'assets/level-10.png', name: 'Модник' },
-  { level: 11, min: 100_000_000, max: 250_000_000, image: 'assets/level-11.png', name: 'Доктор' },
-  { level: 12, min: 250_000_000, max: 500_000_000, image: 'assets/level-12.png', name: 'Квартирник' },
-  { level: 13, min: 500_000_000, max: 1_000_000_000, image: 'assets/level-13.png', name: 'Селфи-зум' },
-  { level: 14, min: 1_000_000_000, max: 5_000_000_000, image: 'assets/level-14.png', name: 'Виски Bape' },
-  { level: 15, min: 5_000_000_000, max: 50_000_000_000, image: 'assets/level-15.png', name: 'Дрыхнет' },
-  { level: 16, min: 50_000_000_000, max: 1_000_000_000_000, image: 'assets/level-16.png', name: 'Supreme' },
-  { level: 17, min: 10_000_000_000_000, max: null, image: 'assets/level-17.png', name: 'Легенда' },
+  { level: 5, min: 1_000_000, max: null, image: 'assets/level-5.png', name: 'Легенда' },
 ];
 
 let lastPhotoLevel = 0;
@@ -200,30 +187,6 @@ function mergeSaveStates(...saves) {
   };
   syncMaxLevel(merged);
   return merged;
-}
-
-function energyChunkSize(stats) {
-  return Math.max(1, Math.floor(stats.energyRegen * ENERGY_REGEN_INTERVAL_SEC));
-}
-
-function applyEnergyRegen(stats, now = Date.now()) {
-  const last = state.lastEnergyRegen ?? state.lastPassive ?? now;
-  let elapsed = Math.max(0, (now - last) / 1000);
-  elapsed = Math.min(elapsed, 4 * 3600);
-  const chunks = Math.floor(elapsed / ENERGY_REGEN_INTERVAL_SEC);
-  if (chunks <= 0) return 0;
-
-  const add = energyChunkSize(stats) * chunks;
-  state.energy = Math.min(stats.maxEnergy, state.energy + add);
-  state.lastEnergyRegen = last + chunks * ENERGY_REGEN_INTERVAL_SEC * 1000;
-  return add;
-}
-
-function secondsUntilEnergyChunk(now = Date.now()) {
-  const last = state.lastEnergyRegen ?? state.lastPassive ?? now;
-  const elapsed = Math.max(0, (now - last) / 1000);
-  const rem = elapsed % ENERGY_REGEN_INTERVAL_SEC;
-  return rem <= 0 ? ENERGY_REGEN_INTERVAL_SEC : Math.ceil(ENERGY_REGEN_INTERVAL_SEC - rem);
 }
 
 function saveNeedsSync(cloud, merged) {
@@ -720,14 +683,7 @@ function render() {
   const energyPct = (state.energy / stats.maxEnergy) * 100;
   $('#energy-fill').style.width = energyPct + '%';
   $('#energy-fill').classList.toggle('low', energyPct < 20);
-  const energyLine = `${Math.floor(state.energy)} / ${stats.maxEnergy}`;
-  if (state.energy < stats.maxEnergy - 0.5) {
-    const chunk = energyChunkSize(stats);
-    const eta = secondsUntilEnergyChunk();
-    $('#energy-text').textContent = `${energyLine} · +${chunk} через ${eta}с`;
-  } else {
-    $('#energy-text').textContent = energyLine;
-  }
+  $('#energy-text').textContent = `${Math.floor(state.energy)} / ${stats.maxEnergy}`;
 
   $('#stat-taps').textContent = formatNum(state.totalTaps);
   $('#stat-earned').textContent = formatNum(state.totalEarned);
@@ -971,7 +927,8 @@ function applyPassive() {
     state.totalEarned += earned;
   }
 
-  applyEnergyRegen(stats, now);
+  const regen = stats.energyRegen * elapsed;
+  state.energy = Math.min(stats.maxEnergy, state.energy + regen);
 
   render();
 }
@@ -1346,7 +1303,8 @@ function initOfflineProgress() {
   if (offline > 5) {
     const stats = calcStats();
     const passive = (stats.perHour / 3600) * offline;
-    applyEnergyRegen(stats, now);
+    const regen = stats.energyRegen * offline;
+    state.energy = Math.min(stats.maxEnergy, state.energy + regen);
     if (passive > 0) {
       state.balance += passive;
       state.totalEarned += passive;
@@ -1419,16 +1377,6 @@ async function boot() {
       render();
     }
   }, 5000);
-
-  setInterval(() => {
-    const stats = calcStats();
-    if (state.energy >= stats.maxEnergy - 0.5) return;
-    const energyLine = `${Math.floor(state.energy)} / ${stats.maxEnergy}`;
-    const chunk = energyChunkSize(stats);
-    const eta = secondsUntilEnergyChunk();
-    const el = $('#energy-text');
-    if (el) el.textContent = `${energyLine} · +${chunk} через ${eta}с`;
-  }, 1000);
 
   window.addEventListener('beforeunload', persistProgress);
   window.addEventListener('pagehide', persistProgress);
