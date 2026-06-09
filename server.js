@@ -64,13 +64,67 @@ function isAdmin(user) {
   return !!email && ADMIN_EMAILS.has(email);
 }
 
-function blockAdminStatic(req, res, next) {
-  // Только HTML закрыт — страница отдаётся через GET /admin с проверкой прав.
-  // CSS/JS нужны для отображения; API всё равно защищён requireAdmin.
-  if (/^\/admin\.html$/i.test(req.path)) {
+const SENSITIVE_PATH =
+  /^\/(\.env|\.git|node_modules|data|server\.js|db\.js|game-logic\.js|anti-cheat\.js|user-lock\.js|package\.json|package-lock\.json|railway\.toml|README\.md|admin\.html|admin\.js|admin\.css)(\/|$)/i;
+
+function securityHeaders(_req, res, next) {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (isProduction) {
+    res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+}
+
+function blockSensitivePaths(req, res, next) {
+  const p = req.path;
+  if (SENSITIVE_PATH.test(p)) return res.status(404).end();
+  if (/^\/admin(\.|\/)/i.test(p) && !/^\/admin$/i.test(p) && !/^\/admin\/assets\//i.test(p)) {
+    return res.status(404).end();
+  }
+  if (/\.(json|toml|md|example)$/i.test(p) && !p.startsWith('/assets/')) {
+    return res.status(404).end();
+  }
+  if (/\.js$/i.test(p) && p !== '/game.js' && !p.startsWith('/admin/assets/')) {
     return res.status(404).end();
   }
   next();
+}
+
+async function requireAdminPage(req, res, next) {
+  if (!req.isAuthenticated() || !ADMIN_EMAILS.size) {
+    return res.redirect('/');
+  }
+  try {
+    const user = await db.getUserById(req.user.id);
+    if (!user || !isAdmin(user)) return res.redirect('/');
+    next();
+  } catch (_) {
+    res.redirect('/');
+  }
+}
+
+async function requireAdminAsset(req, res, next) {
+  if (!req.isAuthenticated() || !ADMIN_EMAILS.size) {
+    return res.status(403).end();
+  }
+  try {
+    const user = await db.getUserById(req.user.id);
+    if (!user || !isAdmin(user)) return res.status(403).end();
+    next();
+  } catch (_) {
+    res.status(403).end();
+  }
+}
+
+function sendPublicFile(res, filename, contentType) {
+  const filePath = path.join(__dirname, filename);
+  if (!fs.existsSync(filePath)) return res.status(404).end();
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.type(contentType).send(fs.readFileSync(filePath));
 }
 
 function getSessionSecret() {
@@ -117,6 +171,10 @@ async function start() {
 
   const app = express();
   app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+
+  app.use(securityHeaders);
+  app.use(blockSensitivePaths);
 
   app.use(express.json({ limit: '3mb' }));
   app.use(
@@ -179,11 +237,7 @@ async function start() {
   });
 
   app.get('/api/config', (_req, res) => {
-    res.json({ googleAuth: isGoogleConfigured(), baseUrl, assetVersion: ASSET_VERSION });
-  });
-
-  app.get('/api/version', (_req, res) => {
-    res.json({ ok: true, assetVersion: ASSET_VERSION, build: '2026-06-08-big-tap' });
+    res.json({ googleAuth: isGoogleConfigured(), assetVersion: ASSET_VERSION });
   });
 
   app.get('/auth/google', (req, res, next) => {
@@ -225,17 +279,17 @@ async function start() {
     try {
       const user = await db.getUserById(req.user.id);
       if (!user) return res.status(401).json({ error: 'Not logged in' });
-      res.json({
+      const payload = {
         id: user.id,
         name: user.name,
         nickname: user.nickname || null,
         displayName: user.displayName,
-        email: user.email,
         avatar: user.avatar,
         hasCustomAvatar: !!user.custom_avatar,
         banned: user.banned,
-        isAdmin: isAdmin(user),
-      });
+      };
+      if (isAdmin(user)) payload.isAdmin = true;
+      res.json(payload);
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to load profile' });
@@ -533,33 +587,37 @@ async function start() {
     }
   });
 
-  app.get('/admin', async (req, res) => {
-    if (!req.isAuthenticated() || !ADMIN_EMAILS.size) {
-      return res.redirect('/');
-    }
-    try {
-      const user = await db.getUserById(req.user.id);
-      if (!user || !isAdmin(user)) {
-        return res.redirect('/');
-      }
-      sendHtml(res, 'admin.html');
-    } catch (_) {
-      res.redirect('/');
-    }
+  app.get('/admin', requireAdminPage, (_req, res) => {
+    sendHtml(res, 'admin.html');
   });
 
-  app.use(blockAdminStatic);
-
-  app.use((req, res, next) => {
-    if (/\.(html|js|css)$/.test(req.path)) {
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
-    next();
+  app.get('/admin/assets/app.css', requireAdminAsset, (_req, res) => {
+    sendPublicFile(res, 'admin.css', 'text/css');
   });
 
-  app.use(express.static(path.join(__dirname), { index: false, maxAge: 0 }));
+  app.get('/admin/assets/app.js', requireAdminAsset, (_req, res) => {
+    sendPublicFile(res, 'admin.js', 'application/javascript');
+  });
 
-  app.get('*', (_req, res) => {
+  app.get('/game.js', (_req, res) => {
+    sendPublicFile(res, 'game.js', 'application/javascript');
+  });
+
+  app.get('/styles.css', (_req, res) => {
+    sendPublicFile(res, 'styles.css', 'text/css');
+  });
+
+  app.use(
+    '/assets',
+    express.static(path.join(__dirname, 'assets'), {
+      index: false,
+      maxAge: isProduction ? '7d' : 0,
+      fallthrough: false,
+    })
+  );
+
+  app.get('*', (req, res) => {
+    if (req.path.includes('.')) return res.status(404).end();
     sendHtml(res, 'index.html');
   });
 
