@@ -10,6 +10,15 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('./db');
 const antiCheat = require('./anti-cheat');
 const { withUserLock } = require('./user-lock');
+const { registerHoneypot, sendAdminHoneypot } = require('./honeypot');
+const {
+  createRateLimiter,
+  securityHeaders,
+  contentSecurityPolicy,
+  blockUnsafeMethods,
+  blockRealSensitivePaths,
+  sanitizeText,
+} = require('./security');
 const {
   UPGRADES,
   applyPassive,
@@ -64,45 +73,32 @@ function isAdmin(user) {
   return !!email && ADMIN_EMAILS.has(email);
 }
 
-const SENSITIVE_PATH =
-  /^\/(\.env|\.git|node_modules|data|server\.js|db\.js|game-logic\.js|anti-cheat\.js|user-lock\.js|package\.json|package-lock\.json|railway\.toml|README\.md|admin\.html|admin\.js|admin\.css)(\/|$)/i;
+const apiRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 180,
+  name: 'api',
+  skip: (req) => req.path.startsWith('/api/config'),
+});
 
-function securityHeaders(_req, res, next) {
-  res.set('X-Content-Type-Options', 'nosniff');
-  res.set('X-Frame-Options', 'DENY');
-  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  if (isProduction) {
-    res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-  next();
-}
-
-function blockSensitivePaths(req, res, next) {
-  const p = req.path;
-  if (SENSITIVE_PATH.test(p)) return res.status(404).end();
-  if (/^\/admin(\.|\/)/i.test(p) && !/^\/admin$/i.test(p) && !/^\/admin\/assets\//i.test(p)) {
-    return res.status(404).end();
-  }
-  if (/\.(json|toml|md|example)$/i.test(p) && !p.startsWith('/assets/')) {
-    return res.status(404).end();
-  }
-  if (/\.js$/i.test(p) && p !== '/game.js' && !p.startsWith('/admin/assets/')) {
-    return res.status(404).end();
-  }
-  next();
-}
+const authRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  name: 'auth',
+});
 
 async function requireAdminPage(req, res, next) {
-  if (!req.isAuthenticated() || !ADMIN_EMAILS.size) {
-    return res.redirect('/');
+  if (!ADMIN_EMAILS.size) {
+    return sendAdminHoneypot(req, res);
+  }
+  if (!req.isAuthenticated()) {
+    return sendAdminHoneypot(req, res);
   }
   try {
     const user = await db.getUserById(req.user.id);
-    if (!user || !isAdmin(user)) return res.redirect('/');
+    if (!user || !isAdmin(user)) return sendAdminHoneypot(req, res);
     next();
   } catch (_) {
-    res.redirect('/');
+    sendAdminHoneypot(req, res);
   }
 }
 
@@ -173,10 +169,13 @@ async function start() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
-  app.use(securityHeaders);
-  app.use(blockSensitivePaths);
+  app.use(securityHeaders(isProduction));
+  app.use(blockUnsafeMethods);
+  app.use(contentSecurityPolicy);
+  registerHoneypot(app);
+  app.use(blockRealSensitivePaths);
 
-  app.use(express.json({ limit: '3mb' }));
+  app.use(express.json({ limit: '1mb' }));
   app.use(
     session({
       name: 'fauckzini.sid',
@@ -236,9 +235,18 @@ async function start() {
     }
   });
 
+  app.get('/robots.txt', (_req, res) => {
+    res.type('text/plain').send(
+      'User-agent: *\nDisallow: /admin\nDisallow: /admin-panel\nDisallow: /backup\nDisallow: /api/\nDisallow: /_internal/\n'
+    );
+  });
+
   app.get('/api/config', (_req, res) => {
     res.json({ googleAuth: isGoogleConfigured(), assetVersion: ASSET_VERSION });
   });
+
+  app.use('/api', apiRateLimit);
+  app.use('/auth', authRateLimit);
 
   app.get('/auth/google', (req, res, next) => {
     if (!isGoogleConfigured()) return res.redirect('/?auth=not_configured');
@@ -522,8 +530,8 @@ async function start() {
       if (userId === req.user.id) {
         return res.status(400).json({ error: 'Cannot ban yourself' });
       }
-      const { reason } = req.body;
-      await db.setBanned(userId, true, reason || 'Нарушение правил');
+      const reason = sanitizeText(req.body.reason, 200) || 'Нарушение правил';
+      await db.setBanned(userId, true, reason);
       antiCheat.resetTrack(userId);
       res.json({ ok: true });
     } catch (err) {
@@ -611,10 +619,13 @@ async function start() {
     '/assets',
     express.static(path.join(__dirname, 'assets'), {
       index: false,
+      dotfiles: 'deny',
       maxAge: isProduction ? '7d' : 0,
       fallthrough: false,
     })
   );
+
+  app.use('/private', (_req, res) => res.status(404).end());
 
   app.get('*', (req, res) => {
     if (req.path.includes('.')) return res.status(404).end();
