@@ -121,13 +121,13 @@ const UPGRADES = [
     basePrice: 1500,
     priceMult: 2,
     maxLevel: 15,
-    effect: (lvl) => ({ energyRegen: lvl * 0.4 }),
+    effect: (lvl) => ({ energyRegen: lvl * 0.1 }),
   },
 ];
 
 const defaultState = () => ({
   balance: 0,
-  energy: 1800,
+  energy: 320,
   totalTaps: 0,
   totalEarned: 0,
   maxLevel: 1,
@@ -185,7 +185,7 @@ function mergeSaveStates(...saves) {
   const merged = {
     ...defaultState(),
     balance: Math.max(...valid.map((s) => s.balance || 0)),
-    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1800),
+    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 320),
     totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
     totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
     maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
@@ -254,7 +254,7 @@ function applySaveData(data) {
   state = {
     ...defaultState(),
     balance: data.balance ?? 0,
-    energy: data.energy ?? 1800,
+    energy: data.energy ?? 320,
     totalTaps: data.totalTaps ?? 0,
     totalEarned: data.totalEarned ?? 0,
     maxLevel: data.maxLevel ?? 1,
@@ -591,10 +591,10 @@ function getUpgradePrice(upgrade) {
 function calcStats() {
   let perTap = 1;
   let perHour = 0;
-  let maxEnergy = 1800;
+  let maxEnergy = 320;
   let tapMult = 1;
   let hourMult = 1;
-  let energyRegen = 10;
+  let energyRegen = 0.18;
 
   for (const upgrade of UPGRADES) {
     const lvl = state.upgradeLevels[upgrade.id];
@@ -1026,7 +1026,7 @@ function paintLeaderboard(players, total, myRank) {
 
     const rank = document.createElement('span');
     rank.className = 'lb-rank';
-    rank.textContent = p.isVova ? '🔥' : `#${p.rank}`;
+    rank.textContent = `#${p.rank}`;
 
     const avatarWrap = document.createElement('div');
     avatarWrap.className = 'lb-avatar-wrap';

@@ -5,15 +5,14 @@ const UPGRADES = [
   { id: 'tshirt', basePrice: 1000, priceMult: 2, maxLevel: 10, effect: (lvl) => ({ tapMult: 1 + lvl * 0.5 }) },
   { id: 'earbuds', basePrice: 800, priceMult: 1.8, maxLevel: 20, effect: (lvl) => ({ maxEnergy: lvl * 12 }) },
   { id: 'ring', basePrice: 2000, priceMult: 2.2, maxLevel: 8, effect: (lvl) => ({ hourMult: 1 + lvl * 1.5 }) },
-  { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl * 0.4 }) },
+  { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl * 0.1 }) },
 ];
 
 const MAX_PASSIVE_ELAPSED_SEC = 4 * 3600;
 const MAX_TAP_EARN_ESTIMATE = 500;
-const BASE_MAX_ENERGY = 1800;
-const BASE_ENERGY_REGEN = 10;
+const BASE_MAX_ENERGY = 320;
+const BASE_ENERGY_REGEN = 0.18;
 const ENERGY_REGEN_INTERVAL_SEC = 15;
-const FULL_ENERGY_REGEN_SEC = 180;
 
 const PHOTO_LEVELS = [
   { level: 1, min: 0, max: 10_000 },

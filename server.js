@@ -347,10 +347,7 @@ async function start() {
         if (isMe) myRank = p.rank;
         return { ...p, isMe };
       });
-      const vovaPlayers = enriched.filter((p) => p.isVova);
-      const others = enriched.filter((p) => !p.isVova);
-      const ordered = [...vovaPlayers, ...others];
-      res.json({ players: ordered, total: enriched.length, myRank });
+      res.json({ players: enriched, total: enriched.length, myRank });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Failed to load leaderboard' });

@@ -48,7 +48,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS saves (
         user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
         balance DOUBLE PRECISION DEFAULT 0,
-        energy DOUBLE PRECISION DEFAULT 1800,
+        energy DOUBLE PRECISION DEFAULT 320,
         total_taps INTEGER DEFAULT 0,
         total_earned DOUBLE PRECISION DEFAULT 0,
         upgrade_levels JSONB DEFAULT '{}',
@@ -76,7 +76,7 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS last_energy_regen BIGINT DEFAULT 0`);
     await pool.query(`
       INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
-      SELECT u.id, 0, 1800, 0, 0, '{}', 0, 0, 1, 0
+      SELECT u.id, 0, 320, 0, 0, '{}', 0, 0, 1, 0
       FROM users u
       LEFT JOIN saves s ON s.user_id = u.id
       WHERE s.user_id IS NULL
@@ -238,7 +238,7 @@ async function upsertSave(userId, save) {
   const payload = {
     user_id: userId,
     balance: save.balance ?? 0,
-    energy: save.energy ?? 1800,
+    energy: save.energy ?? 320,
     total_taps: save.totalTaps ?? 0,
     total_earned: save.totalEarned ?? 0,
     upgrade_levels: levels,
