@@ -64,7 +64,9 @@ function isAdmin(user) {
 }
 
 function blockAdminStatic(req, res, next) {
-  if (/^\/admin\.(html|js|css)$/i.test(req.path)) {
+  // Только HTML закрыт — страница отдаётся через GET /admin с проверкой прав.
+  // CSS/JS нужны для отображения; API всё равно защищён requireAdmin.
+  if (/^\/admin\.html$/i.test(req.path)) {
     return res.status(404).end();
   }
   next();
