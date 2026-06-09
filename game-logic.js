@@ -1,10 +1,10 @@
 const UPGRADES = [
   { id: 'protein', basePrice: 50, priceMult: 1.6, maxLevel: 50, effect: (lvl) => ({ perTap: lvl }) },
   { id: 'gym', basePrice: 250, priceMult: 1.7, maxLevel: 30, effect: (lvl) => ({ perTap: lvl * 3 }) },
-  { id: 'creatine', basePrice: 500, priceMult: 1.65, maxLevel: 25, effect: (lvl) => ({ perHour: lvl * 10 }) },
+  { id: 'creatine', basePrice: 500, priceMult: 1.65, maxLevel: 25, effect: (lvl) => ({ perHour: lvl * 200 }) },
   { id: 'tshirt', basePrice: 1000, priceMult: 2, maxLevel: 10, effect: (lvl) => ({ tapMult: 1 + lvl * 0.5 }) },
   { id: 'earbuds', basePrice: 800, priceMult: 1.8, maxLevel: 20, effect: (lvl) => ({ maxEnergy: lvl * 12 }) },
-  { id: 'ring', basePrice: 2000, priceMult: 2.2, maxLevel: 8, effect: (lvl) => ({ hourMult: 1 + lvl }) },
+  { id: 'ring', basePrice: 2000, priceMult: 2.2, maxLevel: 8, effect: (lvl) => ({ hourMult: 1 + lvl * 1.5 }) },
   { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl * 0.1 }) },
 ];
 
