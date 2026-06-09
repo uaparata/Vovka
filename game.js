@@ -1119,6 +1119,34 @@ function initTap() {
   zone.addEventListener('pointercancel', () => {
     active = false;
   });
+
+  const desktopKeyboard = window.matchMedia('(hover: hover)');
+
+  function isTypingElement(el) {
+    if (!el || el.isContentEditable) return !!el?.isContentEditable;
+    const tag = el.tagName;
+    if (tag === 'TEXTAREA') return true;
+    if (tag === 'INPUT') {
+      const type = (el.type || 'text').toLowerCase();
+      return type !== 'button' && type !== 'submit' && type !== 'checkbox' && type !== 'radio';
+    }
+    return false;
+  }
+
+  function onSpaceTap(e) {
+    if (!desktopKeyboard.matches) return;
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    if (isTypingElement(document.activeElement)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = zone.getBoundingClientRect();
+    tap({
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    });
+  }
+
+  window.addEventListener('keydown', onSpaceTap, true);
 }
 
 function initOfflineProgress() {
