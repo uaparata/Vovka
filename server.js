@@ -58,7 +58,16 @@ function isGoogleConfigured() {
 }
 
 function isAdmin(user) {
-  return user?.email && ADMIN_EMAILS.has(user.email.toLowerCase());
+  if (!ADMIN_EMAILS.size) return false;
+  const email = user?.email?.trim().toLowerCase();
+  return !!email && ADMIN_EMAILS.has(email);
+}
+
+function blockAdminStatic(req, res, next) {
+  if (/^\/admin\.(html|js|css)$/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  next();
 }
 
 function getSessionSecret() {
@@ -80,10 +89,24 @@ function requireAuth(req, res, next) {
   next();
 }
 
-function requireAdmin(req, res, next) {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
-  if (!isAdmin(req.user)) return res.status(403).json({ error: 'Admin only' });
-  next();
+async function requireAdmin(req, res, next) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  if (!ADMIN_EMAILS.size) {
+    return res.status(403).json({ error: 'Admin disabled' });
+  }
+  try {
+    const user = await db.getUserById(req.user.id);
+    if (!user || !isAdmin(user)) {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Auth check failed' });
+  }
 }
 
 async function start() {
@@ -194,19 +217,26 @@ async function start() {
     });
   });
 
-  app.get('/api/me', (req, res) => {
+  app.get('/api/me', async (req, res) => {
     if (!req.user) return res.status(401).json({ error: 'Not logged in' });
-    res.json({
-      id: req.user.id,
-      name: req.user.name,
-      nickname: req.user.nickname || null,
-      displayName: req.user.displayName,
-      email: req.user.email,
-      avatar: req.user.avatar,
-      hasCustomAvatar: !!req.user.custom_avatar,
-      banned: req.user.banned,
-      isAdmin: isAdmin(req.user),
-    });
+    try {
+      const user = await db.getUserById(req.user.id);
+      if (!user) return res.status(401).json({ error: 'Not logged in' });
+      res.json({
+        id: user.id,
+        name: user.name,
+        nickname: user.nickname || null,
+        displayName: user.displayName,
+        email: user.email,
+        avatar: user.avatar,
+        hasCustomAvatar: !!user.custom_avatar,
+        banned: user.banned,
+        isAdmin: isAdmin(user),
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to load profile' });
+    }
   });
 
   app.get('/api/users/:id/avatar', async (req, res) => {
@@ -413,7 +443,14 @@ async function start() {
 
   app.post('/api/admin/ban', requireAdmin, async (req, res) => {
     try {
-      const { userId, reason } = req.body;
+      const userId = Number(req.body.userId);
+      if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ error: 'Invalid user' });
+      }
+      if (userId === req.user.id) {
+        return res.status(400).json({ error: 'Cannot ban yourself' });
+      }
+      const { reason } = req.body;
       await db.setBanned(userId, true, reason || 'Нарушение правил');
       antiCheat.resetTrack(userId);
       res.json({ ok: true });
@@ -425,7 +462,10 @@ async function start() {
 
   app.post('/api/admin/unban', requireAdmin, async (req, res) => {
     try {
-      const { userId } = req.body;
+      const userId = Number(req.body.userId);
+      if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ error: 'Invalid user' });
+      }
       await db.setBanned(userId, false, null);
       res.json({ ok: true });
     } catch (err) {
@@ -437,7 +477,9 @@ async function start() {
   app.post('/api/admin/adjust-balance', requireAdmin, async (req, res) => {
     try {
       const userId = Number(req.body.userId);
-      if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Invalid user' });
+      if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ error: 'Invalid user' });
+      }
 
       let save;
       if (req.body.set !== undefined) save = await db.setBalance(userId, Number(req.body.set));
@@ -461,7 +503,9 @@ async function start() {
   app.post('/api/admin/reset', requireAdmin, async (req, res) => {
     try {
       const userId = Number(req.body.userId);
-      if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Invalid user' });
+      if (!Number.isFinite(userId) || userId <= 0) {
+        return res.status(400).json({ error: 'Invalid user' });
+      }
       const save = await db.resetPlayerProgress(userId);
       antiCheat.resetTrack(userId);
       res.json({ ok: true, save });
@@ -471,12 +515,22 @@ async function start() {
     }
   });
 
-  app.get('/admin', (req, res) => {
-    if (!req.isAuthenticated() || !isAdmin(req.user)) {
+  app.get('/admin', async (req, res) => {
+    if (!req.isAuthenticated() || !ADMIN_EMAILS.size) {
       return res.redirect('/');
     }
-    sendHtml(res, 'admin.html');
+    try {
+      const user = await db.getUserById(req.user.id);
+      if (!user || !isAdmin(user)) {
+        return res.redirect('/');
+      }
+      sendHtml(res, 'admin.html');
+    } catch (_) {
+      res.redirect('/');
+    }
   });
+
+  app.use(blockAdminStatic);
 
   app.use((req, res, next) => {
     if (/\.(html|js|css)$/.test(req.path)) {
@@ -497,8 +551,7 @@ async function start() {
     console.log(`Fauck Zini running on ${baseUrl}`);
     console.log(`Asset version: ${ASSET_VERSION}`);
     if (ADMIN_EMAILS.size) {
-      console.log(`Admins: ${[...ADMIN_EMAILS].join(', ')}`);
-      console.log(`Admin panel: ${baseUrl}/admin`);
+      console.log(`Admin panel enabled (${ADMIN_EMAILS.size} email(s)) → ${baseUrl}/admin`);
     } else {
       console.warn('ADMIN_EMAILS not set — admin panel disabled');
     }
