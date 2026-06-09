@@ -1208,6 +1208,7 @@ function initTap() {
   function onSpaceTap(e) {
     if (!desktopKeyboard.matches) return;
     if (e.code !== 'Space' && e.key !== ' ') return;
+    if (e.repeat) return;
     if (isTypingElement(document.activeElement)) return;
     e.preventDefault();
     e.stopPropagation();
