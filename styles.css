@@ -345,6 +345,9 @@ body {
   padding: 8px;
   border-radius: 50%;
   transition: transform 0.12s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .tap-zone:active {

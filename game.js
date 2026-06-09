@@ -2,7 +2,7 @@ const STORAGE_GUEST = 'fauckzini_save_guest';
 const STORAGE_LEGACY = 'fauckzini_save';
 const LAST_USER_KEY = 'fauckzini_last_user_id';
 const SILENT_AUTH_TRIED = 'fauckzini_silent_auth_tried';
-const ENERGY_REGEN_INTERVAL_SEC = 12;
+const ENERGY_REGEN_INTERVAL_SEC = 15;
 
 function storageKey(userId) {
   return userId ? `fauckzini_save_u_${userId}` : STORAGE_GUEST;
@@ -109,13 +109,13 @@ const UPGRADES = [
     basePrice: 1500,
     priceMult: 2,
     maxLevel: 15,
-    effect: (lvl) => ({ energyRegen: lvl * 0.1 }),
+    effect: (lvl) => ({ energyRegen: lvl * 0.4 }),
   },
 ];
 
 const defaultState = () => ({
   balance: 0,
-  energy: 320,
+  energy: 1800,
   totalTaps: 0,
   totalEarned: 0,
   maxLevel: 1,
@@ -173,7 +173,7 @@ function mergeSaveStates(...saves) {
   const merged = {
     ...defaultState(),
     balance: Math.max(...valid.map((s) => s.balance || 0)),
-    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 320),
+    energy: Math.max(...valid.map((s) => s.energy || 0), primary.energy || 1800),
     totalTaps: Math.max(...valid.map((s) => s.totalTaps || 0)),
     totalEarned: Math.max(...valid.map((s) => s.totalEarned || 0)),
     maxLevel: Math.max(...valid.map((s) => s.maxLevel || 1)),
@@ -242,7 +242,7 @@ function applySaveData(data) {
   state = {
     ...defaultState(),
     balance: data.balance ?? 0,
-    energy: data.energy ?? 320,
+    energy: data.energy ?? 1800,
     totalTaps: data.totalTaps ?? 0,
     totalEarned: data.totalEarned ?? 0,
     maxLevel: data.maxLevel ?? 1,
@@ -564,10 +564,10 @@ function getUpgradePrice(upgrade) {
 function calcStats() {
   let perTap = 1;
   let perHour = 0;
-  let maxEnergy = 320;
+  let maxEnergy = 1800;
   let tapMult = 1;
   let hourMult = 1;
-  let energyRegen = 0.18;
+  let energyRegen = 10;
 
   for (const upgrade of UPGRADES) {
     const lvl = state.upgradeLevels[upgrade.id];
@@ -797,6 +797,10 @@ function playTapAnim(e, earned) {
   spawnFloat(x, y, earned);
 }
 
+function pendingTapCount() {
+  return tapQueue.length + (tapQueueRunning ? 1 : 0);
+}
+
 function applyOptimisticTap() {
   const stats = calcStats();
   if (state.energy < 1) return null;
@@ -808,6 +812,21 @@ function applyOptimisticTap() {
   syncMaxLevel();
   saveState();
   return earned;
+}
+
+function mergeServerTapSave(serverSave) {
+  const pending = pendingTapCount();
+  const localEnergy = state.energy;
+  const localBalance = state.balance;
+  const localTaps = state.totalTaps;
+  const localEarned = state.totalEarned;
+
+  applySaveData(serverSave);
+  state.energy = Math.min(localEnergy, Math.max(0, serverSave.energy - pending));
+  state.balance = Math.max(serverSave.balance ?? 0, localBalance);
+  state.totalTaps = Math.max(serverSave.totalTaps ?? 0, localTaps);
+  state.totalEarned = Math.max(serverSave.totalEarned ?? 0, localEarned);
+  syncMaxLevel();
 }
 
 function enqueueTap(e) {
@@ -860,9 +879,22 @@ async function sendTapToServer(e, retries = 2) {
         }
         continue;
       }
+      if (res.status === 400) {
+        tapQueue.length = 0;
+        try {
+          const tick = await fetch('/api/tick', { method: 'POST', credentials: 'include' });
+          if (tick.ok) {
+            const { save } = await tick.json();
+            applySaveData(save);
+          }
+        } catch (_) {}
+        render();
+        saveState();
+        return false;
+      }
       if (!res.ok) return true;
       const data = await res.json();
-      applySaveData(data.save);
+      mergeServerTapSave(data.save);
       render();
       saveState();
       refreshLeaderboardIfActive();
@@ -1165,34 +1197,54 @@ function initTap() {
   let startX = 0;
   let startY = 0;
   let active = false;
+  let activePointerId = null;
 
   zone.addEventListener(
     'pointerdown',
     (e) => {
+      if (e.pointerType === 'touch') {
+        e.preventDefault();
+        tap(e);
+        return;
+      }
       startX = e.clientX;
       startY = e.clientY;
       active = true;
+      activePointerId = e.pointerId;
+      try {
+        zone.setPointerCapture(e.pointerId);
+      } catch (_) {}
     },
-    { passive: true }
+    { passive: false }
   );
 
   zone.addEventListener(
     'pointerup',
     (e) => {
-      if (!active) return;
+      if (e.pointerType === 'touch') return;
+      if (!active || e.pointerId !== activePointerId) return;
       active = false;
+      activePointerId = null;
       const dx = Math.abs(e.clientX - startX);
       const dy = Math.abs(e.clientY - startY);
-      if (dx < 16 && dy < 16) tap(e);
+      if (dx < 24 && dy < 24) tap(e);
     },
     { passive: true }
   );
 
-  zone.addEventListener('pointercancel', () => {
-    active = false;
+  zone.addEventListener('pointercancel', (e) => {
+    if (e.pointerId === activePointerId) {
+      active = false;
+      activePointerId = null;
+    }
   });
 
   const desktopKeyboard = window.matchMedia('(hover: hover)');
+  let spaceHeld = false;
+
+  function isSpaceKey(e) {
+    return e.code === 'Space' || e.key === ' ';
+  }
 
   function isTypingElement(el) {
     if (!el || el.isContentEditable) return !!el?.isContentEditable;
@@ -1205,13 +1257,18 @@ function initTap() {
     return false;
   }
 
-  function onSpaceTap(e) {
+  function releaseSpace() {
+    spaceHeld = false;
+  }
+
+  function onSpaceDown(e) {
     if (!desktopKeyboard.matches) return;
-    if (e.code !== 'Space' && e.key !== ' ') return;
-    if (e.repeat) return;
+    if (!isSpaceKey(e)) return;
     if (isTypingElement(document.activeElement)) return;
     e.preventDefault();
     e.stopPropagation();
+    if (spaceHeld || e.repeat) return;
+    spaceHeld = true;
     const rect = zone.getBoundingClientRect();
     tap({
       clientX: rect.left + rect.width / 2,
@@ -1219,7 +1276,14 @@ function initTap() {
     });
   }
 
-  window.addEventListener('keydown', onSpaceTap, true);
+  function onSpaceUp(e) {
+    if (!isSpaceKey(e)) return;
+    releaseSpace();
+  }
+
+  window.addEventListener('keydown', onSpaceDown, true);
+  window.addEventListener('keyup', onSpaceUp, true);
+  window.addEventListener('blur', releaseSpace);
 }
 
 function initOfflineProgress() {
