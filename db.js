@@ -409,9 +409,15 @@ async function adjustBalance(userId, delta) {
 }
 
 async function setBalance(userId, balance) {
+  const val = Math.max(0, Number(balance) || 0);
+  if (val === 0) {
+    return resetPlayerProgress(userId);
+  }
   const save = await getOrCreateSave(userId);
-  save.balance = Math.max(0, Number(balance) || 0);
-  const { syncMaxLevel } = require('./game-logic');
+  save.balance = val;
+  const { levelFromBalance, syncMaxLevel } = require('./game-logic');
+  save.maxLevel = levelFromBalance(val);
+  save.peakBalance = Math.max(save.peakBalance || 0, val);
   syncMaxLevel(save);
   await upsertSave(userId, save);
   return save;

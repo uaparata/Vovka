@@ -166,9 +166,29 @@ function loadLocalState(userId = null) {
   return defaultState();
 }
 
+function isFreshResetSave(save) {
+  if (!save) return false;
+  const upgradeSum = Object.values(save.upgradeLevels || {}).reduce(
+    (sum, lvl) => sum + (Number(lvl) || 0),
+    0
+  );
+  return (
+    upgradeSum === 0 &&
+    (save.totalTaps || 0) === 0 &&
+    (save.totalEarned || 0) === 0 &&
+    (save.balance || 0) === 0 &&
+    (save.maxLevel || 1) <= 1
+  );
+}
+
 function mergeSaveStates(...saves) {
   const valid = saves.filter(Boolean);
   if (!valid.length) return defaultState();
+
+  const resetSave = valid.find(isFreshResetSave);
+  if (resetSave && valid.some((s) => !isFreshResetSave(s) && (s.totalEarned || 0) > 0)) {
+    return { ...defaultState(), ...resetSave };
+  }
 
   const primary = valid.reduce((a, b) =>
     (a.totalEarned || 0) >= (b.totalEarned || 0) ? a : b
@@ -226,20 +246,23 @@ function getSavePayload() {
 }
 
 function applySaveData(data) {
+  const base = defaultState();
   state = {
-    ...defaultState(),
+    ...base,
     balance: data.balance ?? 0,
     energy: data.energy ?? 320,
     totalTaps: data.totalTaps ?? 0,
     totalEarned: data.totalEarned ?? 0,
     maxLevel: data.maxLevel ?? 1,
     peakBalance: data.peakBalance ?? 0,
-    upgradeLevels: { ...defaultState().upgradeLevels, ...(data.upgradeLevels || {}) },
+    upgradeLevels: isFreshResetSave(data)
+      ? { ...base.upgradeLevels }
+      : { ...base.upgradeLevels, ...(data.upgradeLevels || {}) },
     lastPassive: data.lastPassive ?? Date.now(),
     lastEnergyRegen: data.lastEnergyRegen ?? data.lastPassive ?? Date.now(),
     lastSave: data.lastSave ?? Date.now(),
   };
-  syncMaxLevel();
+  if (!isFreshResetSave(data)) syncMaxLevel();
 }
 
 let googleAuthReady = true;
@@ -401,9 +424,14 @@ async function loadCloudSave() {
 
     const data = await res.json();
     const cloud = data.save || null;
-    const merged = mergeSaveStates(bestLocal, cloud);
-    applySaveData(merged);
-    saveState();
+    if (cloud && isFreshResetSave(cloud)) {
+      applySaveData(cloud);
+      saveState();
+    } else {
+      const merged = mergeSaveStates(bestLocal, cloud);
+      applySaveData(merged);
+      saveState();
+    }
 
     const reconciled = await reconcileSaveToServer(getSavePayload());
     if (reconciled) {

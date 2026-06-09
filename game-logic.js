@@ -96,6 +96,21 @@ function syncMaxLevel(save) {
   save.maxLevel = Math.max(save.maxLevel || 1, fromBalance);
 }
 
+function isFreshResetSave(save) {
+  if (!save) return false;
+  const upgradeSum = Object.values(save.upgradeLevels || {}).reduce(
+    (sum, lvl) => sum + (Number(lvl) || 0),
+    0
+  );
+  return (
+    upgradeSum === 0 &&
+    (save.totalTaps || 0) === 0 &&
+    (save.totalEarned || 0) === 0 &&
+    (save.balance || 0) === 0 &&
+    (save.maxLevel || 1) <= 1
+  );
+}
+
 function totalUpgradeSpend(upgradeLevels) {
   if (!upgradeLevels) return 0;
   let total = 0;
@@ -149,6 +164,11 @@ function mergeSaves(...saves) {
   const valid = saves.filter(Boolean);
   if (!valid.length) return defaultSave();
 
+  const resetSave = valid.find(isFreshResetSave);
+  if (resetSave && valid.some((s) => !isFreshResetSave(s) && (s.totalEarned || 0) > 0)) {
+    return { ...defaultSave(), ...resetSave };
+  }
+
   const primary = valid.reduce((a, b) =>
     (a.totalEarned || 0) >= (b.totalEarned || 0) ? a : b
   );
@@ -187,6 +207,10 @@ function reconcileSaves(server, client) {
     const copy = { ...srv };
     syncMaxLevel(copy);
     return copy;
+  }
+
+  if (isFreshResetSave(srv)) {
+    return { ...defaultSave(), ...srv };
   }
 
   const tapDelta = Math.max(0, Math.floor((client.totalTaps || 0) - (srv.totalTaps || 0)));
@@ -281,6 +305,7 @@ module.exports = {
   getUpgradePrice,
   levelFromBalance,
   syncMaxLevel,
+  isFreshResetSave,
   totalUpgradeSpend,
   estimateMaxEarnedFromTaps,
   mergeUpgradeLevelsSafely,
