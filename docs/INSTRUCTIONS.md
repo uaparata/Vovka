@@ -14,26 +14,125 @@
 - PostgreSQL обязателен в проде
 - Variables: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `BASE_URL`, `NODE_ENV=production`
 - `DATABASE_URL` подставляется из Postgres
+- `ASSET_VERSION` на проде = git commit / deployment id → HTML и спрайты обновляются у всех клиентов
 
-## Добавить нового Pokemon
+---
 
-1. Положить референс в `Pokemons/` или `assets/pokemon/*-raw.png`
-2. Обработать скриптом (скопировать `process-kirill-sprites.py` / `build-pokemon-idle-sheet.py`)
-3. Добавить запись в `POKEMONS` в **обоих** файлах: `game.js` и `game-logic.js`
-4. При необходимости — CSS-анимация в `styles.css` (`play-*`, `steps(5)` для 6 кадров)
-5. Обновить `?v=` в `index.html` для сброса кэша
+## Как добавить нового Pokemon (полный пайплайн)
 
-## Сборка спрайтов
+### Шаг 1 — Funko Pop модель (референс)
+
+Цель: **3D Funko Pop** в стиле Mullin/BITCOIN, не плоская PIL-графика.
+
+1. Создай папку `Pokemons/<имя>-funko/` (пример: `nikita-funko/`).
+2. Собери референсы лица/одежды (фото друга).
+3. Сгенерируй **горизонтальный pose sheet** — N кадров в один ряд на белом фоне:
+   - Каждый кадр: полное тело на чёрной круглой подставке Funko.
+   - Позы под анимацию (idle → замах → удар → … → idle).
+   - Для 7 кадров: 7 равных панелей слева направо.
+4. Сохрани как `Pokemons/<имя>-funko/<имя>-poses-raw.png`.
+5. Опционально: превью одной позы `*-preview.png` для каталога.
+
+**Эталон:** `Pokemons/bitcoin-bts-funko/bitcoin-poses-raw.png`, `Pokemons/nikita-funko/nikita-poses-raw.png`.
+
+**Не использовать для финала:** `scripts/generate-*-sprites.py` (процедурное рисование) — только для черновиков.
+
+---
+
+### Шаг 2 — Анимация из 7 (или 6) кадров
+
+Технические параметры (единые для всех Pokemon):
+
+| Параметр | Значение |
+|----------|----------|
+| Кадр | 320 × 900 px |
+| Sheet | горизонтальная полоса `320 × N` |
+| Idle | кадр 0 |
+| CSS `background-size` | `calc(N * 100%) 100%` |
+| CSS `steps()` | `steps(N - 1)` |
+
+**Сборка:**
 
 ```bash
-python scripts/build-pokemon-idle-sheet.py    # Mullin + BITCOIN из Funko idle
-python scripts/process-bitcoin-sprites.py     # BITCOIN из горизонтального raw sheet
-python scripts/process-kirill-sprites.py      # Mullin из raw sheet
+# Скопируй и адаптируй один из скриптов:
+cp scripts/process-bitcoin-sprites.py scripts/process-<имя>-sprites.py
+# Правь: RAW_PATH, FRAMES=7, PUNCH_FRAMES / JUMP_FRAMES
+
+python scripts/process-<имя>-sprites.py
 ```
 
-Требуется: `pip install Pillow` (модуль `sprite_seam_fix` в `scripts/`).
+Выход:
+- `assets/pokemon/<id>-idle.png`
+- `assets/pokemon/<id>-sheet.png`
 
-Параметры кадра: 320×900, 6 кадров, `background-size: 600%` в CSS.
+Для Mullin (6 кадров, прыжок): `python scripts/process-kirill-sprites.py`  
+Для BITCOIN (6 кадров, меч): `python scripts/process-bitcoin-sprites.py`  
+Для Nikita (7 кадров, удар по экрану): `python scripts/process-nikita-sprites.py`
+
+Требуется: `pip install Pillow`, модуль `scripts/sprite_seam_fix.py` (для AI-швов у Mullin).
+
+---
+
+### Шаг 3 — Интеграция в игру
+
+1. **`POKEMONS`** — добавить объект в **оба** файла: `game.js` и `game-logic.js`:
+
+```javascript
+{
+  id: 'nikita',                    // ключ в сейве
+  name: 'Nikita',                  // имя в UI
+  image: 'assets/pokemon/nikita-idle.png',
+  spriteSheet: 'assets/pokemon/nikita-sheet.png',
+  spriteFrames: 7,
+  animMs: 770,
+  animClass: 'play-punch-break',   // см. triggerPokemonUppercut
+  fillsSlot: true,
+  price: 80_000,
+  upgradeBasePrice: 30_000,
+  upgradePriceAtMax: 90_000_000_000,
+  maxLevel: 100,
+  perHourAtMax: 450_000_000,
+  perHourCurve: 'cubic',
+  punchIntervalMs: 2800,
+  weapon: 'fists',
+  desc: 'Бьёт экран — зинкоины за каждый удар',
+}
+```
+
+2. **CSS** (`styles.css`):
+   - Кадры: `.pokemon-sprite.is-sprite-anim` + `@keyframes pokemon-sprite-strip` (уже есть).
+   - Движение тела: новый класс на **обёртке** `.pokemon-sprite-wrap.is-*-anim` (bounce / punch / saber).
+   - **Не** анимировать `background-position` и `transform` на одном элементе.
+
+3. **`game.js` → `triggerPokemonUppercut`:** по `animClass` вешать класс на wrap:
+   - `play-uppercut` → `is-bounce-anim`
+   - `play-punch-break` → `is-punch-anim`
+   - `play-lightsaber` → `is-saber-anim`
+
+4. **Кэш:** поднять `?v=` в `index.html` для `game.js` и `styles.css`. PNG подхватывают версию через `pokemonAssetUrl()`.
+
+5. **`Pokemons/README.md`** — строка в таблице проектов.
+
+---
+
+## Анимация Pokemon (архитектура DOM)
+
+```html
+<div class="pokemon-sprite-wrap pokemon-sprite-wrap--fills-slot">
+  <div class="pokemon-sprite" style="background-image: url(...)"></div>
+</div>
+```
+
+| Слой | Что анимируется |
+|------|-----------------|
+| `.pokemon-sprite` | Только `background-position` 0%→100%, `steps(frames-1)` |
+| `.pokemon-sprite-wrap` | Прыжок / выпад / покачивание (`transform`) |
+
+Слот `.pokemon-slot` и `.pokemon-slot-stage` — всегда `overflow: hidden`.
+
+Подробнее о баге «скролла»: [docs/BUGS.md](BUGS.md).
+
+---
 
 ## Правила сейвов (не ломать)
 
@@ -51,13 +150,17 @@ python scripts/process-kirill-sprites.py      # Mullin из raw sheet
 
 ## Версионирование ассетов
 
-- Query `?v=22` в `index.html` для `game.js` и `styles.css`
+- Query `?v=26` в `index.html` для `game.js` и `styles.css`
+- `pokemonAssetUrl(path)` добавляет `?v=` к PNG спрайтам
 - На сервере `ASSET_VERSION` из Railway env подменяет `v=` в отдаваемом HTML
+- Старые устройства: при несовпадении версии `ensureLatestAssets()` делает reload
 
 ## Тестирование вручную
 
 - [ ] Гость: тап, покупка, перезагрузка — прогресс в localStorage
 - [ ] Google: вход, выход, повторный вход — баланс и уровень на месте
-- [ ] Pokemons: анимация без смещения слота, BITCOIN с мечом
+- [ ] Pokemons: одинаковый размер Mullin/BITCOIN/Nikita на телефоне и десктопе
+- [ ] Анимация: кадры переключаются на месте, без горизонтального «скролла»
+- [ ] BITCOIN с мечом, Nikita с трещинами экрана
 - [ ] Покупка Pokemon / улучшения с первого нажатия
 - [ ] Вкладки меню с первого нажатия на телефоне

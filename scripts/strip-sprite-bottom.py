@@ -1,4 +1,8 @@
-"""Remove near-white pixels from bottom of pokemon sprite sheets."""
+"""Remove near-white pixels from bottom of pokemon sprite sheets.
+
+WARNING: do not run on production sheets without backup — can eat into Funko
+bases and shrink characters. Prefer re-running process-*-sprites.py from raw.
+"""
 from __future__ import annotations
 
 from pathlib import Path

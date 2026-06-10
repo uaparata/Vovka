@@ -1,4 +1,7 @@
-"""Nikita Funko Pop — beanie, shades, BAPE tee, screen-punch break animation (7 frames)."""
+"""DEPRECATED — use process-nikita-sprites.py + nikita-poses-raw.png instead.
+
+Procedural PIL sprites look flat in-game. Kept for reference only.
+"""
 from __future__ import annotations
 
 import math

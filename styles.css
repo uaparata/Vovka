@@ -339,12 +339,12 @@ body {
 
 .pokemon-slot {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
   border-radius: 14px;
   border: 1px dashed var(--border);
   background: linear-gradient(180deg, #1a2030 0%, #0a0e14 55%, #06080c 100%);
   overflow: hidden;
-  min-height: 0;
+  min-height: 128px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -418,10 +418,9 @@ body {
   left: 0;
   right: 0;
   top: 0;
-  bottom: 22px;
+  bottom: 20px;
   overflow: hidden;
   border-radius: 12px 12px 0 0;
-  contain: layout paint;
 }
 
 .pokemon-slot-floor {
@@ -436,51 +435,54 @@ body {
   pointer-events: none;
 }
 
-.pokemon-sprite {
+.pokemon-sprite-wrap {
   --sprite-frames: 6;
   position: absolute;
   left: 50%;
-  bottom: 2px;
+  bottom: 0;
   transform: translateX(-50%);
-  width: auto;
-  height: 100%;
-  max-width: 106%;
+  width: 100%;
+  height: auto;
   aspect-ratio: 320 / 900;
+  z-index: 2;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.pokemon-sprite-wrap--fills-slot {
+  width: 118%;
+  bottom: 0;
+}
+
+.pokemon-sprite {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   background-repeat: no-repeat;
   background-size: calc(var(--sprite-frames) * 100%) 100%;
   background-position: 0% bottom;
-  z-index: 2;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.65));
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
   pointer-events: none;
   user-select: none;
   image-rendering: auto;
 }
 
-.pokemon-sprite--fills-slot {
-  height: 98%;
-  max-width: 108%;
-  bottom: 0;
+.pokemon-sprite-wrap--lightsaber .pokemon-sprite {
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
 }
 
-.pokemon-slot.filled.is-animating {
-  overflow: hidden;
-  z-index: 4;
-}
-
+.pokemon-slot.filled.is-animating,
 .pokemon-slot.filled.is-animating .pokemon-slot-stage {
   overflow: hidden;
 }
 
-.pokemon-sprite--lightsaber {
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
-}
-
-.pokemon-sprite.play-uppercut {
-  animation-name: pokemon-mullin-jump;
+.pokemon-sprite.is-sprite-anim {
+  animation-name: pokemon-sprite-strip;
   animation-fill-mode: forwards;
 }
 
-@keyframes pokemon-uppercut-sprite {
+@keyframes pokemon-sprite-strip {
   from {
     background-position: 0% bottom;
   }
@@ -489,103 +491,40 @@ body {
   }
 }
 
-.pokemon-sprite.play-lightsaber {
-  animation-name: pokemon-lightsaber-sprite;
+.pokemon-sprite-wrap.is-bounce-anim {
+  animation-name: pokemon-mullin-bounce;
   animation-fill-mode: forwards;
 }
 
-.pokemon-sprite.play-punch-break {
-  animation-name: pokemon-nikita-punch;
+@keyframes pokemon-mullin-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  18% { transform: translateX(-50%) translateY(-3%); }
+  36% { transform: translateX(-50%) translateY(-14%); }
+  54% { transform: translateX(-50%) translateY(-5%); }
+  72% { transform: translateX(-50%) translateY(-16%); }
+  90% { transform: translateX(-50%) translateY(-4%); }
+}
+
+.pokemon-sprite-wrap.is-punch-anim {
+  animation-name: pokemon-nikita-lunge;
   animation-fill-mode: forwards;
 }
 
-@keyframes pokemon-nikita-punch {
-  0% {
-    background-position: 0% bottom;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-  16.666% {
-    background-position: 16.666% bottom;
-    transform: translateX(-50%) translateY(-1%) scale(1.02);
-  }
-  33.333% {
-    background-position: 33.333% bottom;
-    transform: translateX(-50%) translateY(-4%) scale(1.05);
-  }
-  50% {
-    background-position: 50% bottom;
-    transform: translateX(-50%) translateY(-6%) scale(1.08);
-  }
-  66.666% {
-    background-position: 66.666% bottom;
-    transform: translateX(-50%) translateY(-5%) scale(1.06);
-  }
-  83.333% {
-    background-position: 83.333% bottom;
-    transform: translateX(-50%) translateY(-2%) scale(1.02);
-  }
-  100% {
-    background-position: 100% bottom;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
+@keyframes pokemon-nikita-lunge {
+  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+  35% { transform: translateX(-50%) translateY(-2%) scale(1.03); }
+  50% { transform: translateX(-50%) translateY(-5%) scale(1.07); }
+  65% { transform: translateX(-50%) translateY(-3%) scale(1.04); }
 }
 
-@keyframes pokemon-mullin-jump {
-  0% {
-    background-position: 0% bottom;
-    transform: translateX(-50%) translateY(0);
-  }
-  16% {
-    background-position: 16.666% bottom;
-    transform: translateX(-50%) translateY(-2%);
-  }
-  33% {
-    background-position: 33.333% bottom;
-    transform: translateX(-50%) translateY(-12%);
-  }
-  50% {
-    background-position: 50% bottom;
-    transform: translateX(-50%) translateY(-4%);
-  }
-  66% {
-    background-position: 66.666% bottom;
-    transform: translateX(-50%) translateY(-16%);
-  }
-  83% {
-    background-position: 83.333% bottom;
-    transform: translateX(-50%) translateY(-6%);
-  }
-  100% {
-    background-position: 100% bottom;
-    transform: translateX(-50%) translateY(0);
-  }
+.pokemon-sprite-wrap.is-saber-anim {
+  animation-name: pokemon-saber-sway;
+  animation-fill-mode: forwards;
 }
 
-@keyframes pokemon-lightsaber-sprite {
-  0% {
-    background-position: 0% bottom;
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 6px rgba(56, 189, 248, 0.25));
-  }
-  20% {
-    background-position: 20% bottom;
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 10px rgba(56, 189, 248, 0.45));
-  }
-  40% {
-    background-position: 40% bottom;
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.65));
-  }
-  60% {
-    background-position: 60% bottom;
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 18px rgba(96, 165, 250, 0.85));
-  }
-  80% {
-    background-position: 80% bottom;
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.55));
-  }
-  100% {
-    background-position: 100% bottom;
-    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
-  }
+@keyframes pokemon-saber-sway {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-4%); }
 }
 
 .pokemon-slot-level {
@@ -609,12 +548,12 @@ body {
   right: 0;
   bottom: 0;
   z-index: 3;
-  padding: 6px 4px 5px;
+  padding: 5px 4px 6px;
   font-size: 0.52rem;
   font-weight: 800;
   text-align: center;
   color: var(--text);
-  background: linear-gradient(transparent 0%, rgba(13, 17, 23, 0.88) 35%, rgba(13, 17, 23, 0.98) 100%);
+  background: linear-gradient(transparent, rgba(13, 17, 23, 0.95));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

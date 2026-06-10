@@ -1,6 +1,45 @@
 # Баги и исправления
 
-## Исправлено (2026-06-10)
+## Исправлено (2026-06-10, вечер)
+
+### Pokemons выглядят по-разному на разных устройствах + стали мелкими
+
+**Симптом:** на телефонах и десктопе персонажи в ферме разного размера; Mullin/BITCOIN/Nikita «съёжились» в центре слота; на старых сессиях кэшировались старые PNG/CSS.
+
+**Причины (комбо):**
+1. CSS `height: 100%` + `width: auto` на `.pokemon-sprite` — спрайт масштабировался по высоте короткой сцены и становился крошечным.
+2. Смена `aspect-ratio` слота с `2/3` на `3/4` и `min-height: 0` — слоты сжимались на узких экранах.
+3. `scripts/strip-sprite-bottom.py` агрессивно вырезал нижние пиксели у готовых sheet — портились Mullin/BITCOIN.
+4. Процедурный `generate-nikita-sprites.py` (PIL-рисование) вместо Funko pose sheet — Nikita выглядел «плоским».
+
+**Фикс:**
+- Вернули width-based масштаб: `.pokemon-sprite-wrap { width: 118%; aspect-ratio: 320/900 }`, слот `2/3`, `min-height: 128px`.
+- Пересборка спрайтов из raw: `process-kirill-sprites.py`, `process-bitcoin-sprites.py`, `process-nikita-sprites.py`.
+- Nikita: `Pokemons/nikita-funko/nikita-poses-raw.png` → game assets (7 кадров).
+- `pokemonAssetUrl()` в `game.js` — `?v=` на PNG; сервер подменяет `v` через `ASSET_VERSION`.
+
+Файлы: `styles.css`, `game.js`, `assets/pokemon/*`, `scripts/process-nikita-sprites.py`
+
+---
+
+### Pokemons «скроллятся» при анимации (горизонтальное проскальзывание)
+
+**Симптом:** во время удара/меча спрайт визуально «едет» по горизонтали, как будто листается вся полоса sheet, а не дискретные кадры.
+
+**Причина:** один элемент анимировал **и** `background-position` по промежуточным keyframes (16.666%, 33.333%…), **и** `transform: translateY/scale`. Браузер интерполирует `background-position` плавно между ключами → эффект скролла. Плюс `steps()` в JS конфликтовал с многоточечными keyframes.
+
+**Фикс (правильная схема):**
+- **Внутренний** `.pokemon-sprite` — только `pokemon-sprite-strip`: `from 0%` → `to 100%` + `steps(frames-1)`.
+- **Внешний** `.pokemon-sprite-wrap` — отдельно bounce/lunge/sway (`translateY`, `scale`), без смены `background-position`.
+- Слот и сцена **всегда** `overflow: hidden`.
+
+Файлы: `styles.css`, `game.js` (`buildPokemonFarm`, `triggerPokemonUppercut`)
+
+**Не делать снова:** не совмещать `translateY` и пошаговую смену кадров на одном DOM-узле.
+
+---
+
+## Исправлено (2026-06-10, утро)
 
 ### Аккаунт / прогресс сбрасывался при входе
 
@@ -35,21 +74,11 @@
 
 ---
 
-### BITCOIN выглядел неправильно
+### BITCOIN выглядел неправильно (первый раз)
 
 **Причина:** устаревшие / процедурно сгенерированные спрайты вместо Funko-референса.
 
-**Фикс:** пересборка из `bitcoin-funko-idle-raw.png` через `scripts/build-pokemon-idle-sheet.py`.
-
----
-
-### Pokemons «скроллились» при анимации
-
-**Причина:** keyframes `*-sprite-full` сдвигали спрайт по `translateY`; `overflow: visible` на слоте.
-
-**Фикс:** убраны full-анимации с translateY; слот всегда `overflow: hidden`; только смена `background-position`.
-
-Файл: `styles.css`
+**Фикс:** пересборка из `bitcoin-poses-raw.png` через `scripts/process-bitcoin-sprites.py`.
 
 ---
 
@@ -72,6 +101,9 @@
 2. Не вызывать `clearStaleLocalSaves` при загрузке облака
 3. Не вешать `addEventListener('click')` внутри `render*()` без делегирования
 4. `game.js` и `game-logic.js` — дублируют `POKEMONS`; менять оба
+5. Анимация Pokemon: strip-кадры и bounce — **разные** элементы DOM
+6. Не использовать процедурный PIL для финальных спрайтов — только Funko pose sheet
+7. После смены PNG — bump `?v=` в `index.html` и проверить `pokemonAssetUrl()`
 
 ## Открытые / низкий приоритет
 

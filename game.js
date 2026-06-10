@@ -175,7 +175,13 @@ const POKEMONS = [
   },
 ];
 
-const POKEMON_ANIM_CLASSES = [...new Set(POKEMONS.map((p) => p.animClass).filter(Boolean))];
+let assetVersionTag = '26';
+const POKEMON_WRAP_ANIM_CLASSES = ['is-bounce-anim', 'is-punch-anim', 'is-saber-anim'];
+
+function pokemonAssetUrl(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}v=${assetVersionTag}`;
+}
 
 function getPokemonPerHour(pokemon, level) {
   if (!pokemon || level <= 0) return 0;
@@ -1095,23 +1101,25 @@ function buildPokemonFarm() {
 
     const { pokemon, level } = slot;
     const perHour = getPokemonPerHour(pokemon, level);
-    const sheet = pokemon.spriteSheet || pokemon.image;
+    const sheet = pokemonAssetUrl(pokemon.spriteSheet || pokemon.image);
     const frames = pokemon.spriteFrames || 6;
-    const spriteClass =
-      'pokemon-sprite' +
-      (pokemon.fillsSlot ? ' pokemon-sprite--fills-slot' : '') +
-      (pokemon.weapon === 'lightsaber' ? ' pokemon-sprite--lightsaber' : '');
+    const wrapClass =
+      'pokemon-sprite-wrap' +
+      (pokemon.fillsSlot ? ' pokemon-sprite-wrap--fills-slot' : '') +
+      (pokemon.weapon === 'lightsaber' ? ' pokemon-sprite-wrap--lightsaber' : '');
     el.innerHTML = `
       <div class="pokemon-slot-stage">
         <div class="pokemon-slot-floor"></div>
-        <div
-          class="${spriteClass}"
-          data-pokemon-id="${pokemon.id}"
-          data-frames="${frames}"
-          style="--sprite-frames: ${frames}; background-image: url('${sheet}')"
-          role="img"
-          aria-label="${pokemon.name}"
-        ></div>
+        <div class="${wrapClass}" style="--sprite-frames: ${frames}">
+          <div
+            class="pokemon-sprite"
+            data-pokemon-id="${pokemon.id}"
+            data-frames="${frames}"
+            style="background-image: url('${sheet}')"
+            role="img"
+            aria-label="${pokemon.name}"
+          ></div>
+        </div>
       </div>
       <span class="pokemon-slot-level">ур. ${level}</span>
       <div class="pokemon-slot-name">${pokemon.name}</div>
@@ -1167,24 +1175,39 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   const sprite = document.querySelector(`.pokemon-sprite[data-pokemon-id="${pokemonId}"]`);
   if (!sprite) return;
 
+  const wrap = sprite.closest('.pokemon-sprite-wrap');
   const def = POKEMONS.find((p) => p.id === pokemonId);
   const frames = def?.spriteFrames || Number(sprite.dataset.frames) || 6;
   const animMs = def?.animMs || 540;
   const animClass = def?.animClass || 'play-uppercut';
+  const steps = Math.max(1, frames - 1);
+
   sprite.style.setProperty('--sprite-frames', String(frames));
   sprite.style.animationDuration = `${animMs}ms`;
-  sprite.style.animationTimingFunction = `steps(${Math.max(1, frames - 1)})`;
-  sprite.classList.remove(...POKEMON_ANIM_CLASSES);
+  sprite.style.animationTimingFunction = `steps(${steps})`;
+  if (wrap) {
+    wrap.style.setProperty('--sprite-frames', String(frames));
+    wrap.style.animationDuration = `${animMs}ms`;
+    wrap.style.animationTimingFunction = 'ease';
+  }
+
+  sprite.classList.remove('is-sprite-anim');
+  wrap?.classList.remove(...POKEMON_WRAP_ANIM_CLASSES);
   void sprite.offsetWidth;
-  sprite.classList.add(animClass);
+  sprite.classList.add('is-sprite-anim');
+
+  if (animClass === 'play-uppercut') wrap?.classList.add('is-bounce-anim');
+  else if (animClass === 'play-punch-break') wrap?.classList.add('is-punch-anim');
+  else if (animClass === 'play-lightsaber') wrap?.classList.add('is-saber-anim');
 
   const slot = sprite.closest('.pokemon-slot');
   if (slot) slot.classList.add('is-animating');
 
   const onEnd = () => {
-    sprite.classList.remove(...POKEMON_ANIM_CLASSES);
+    sprite.classList.remove('is-sprite-anim');
+    wrap?.classList.remove(...POKEMON_WRAP_ANIM_CLASSES);
     sprite.style.backgroundPosition = '0% bottom';
-    sprite.style.transform = '';
+    if (wrap) wrap.style.transform = '';
     sprite.removeEventListener('animationend', onEnd);
     if (slot) slot.classList.remove('is-animating');
   };
@@ -1232,7 +1255,7 @@ function renderPokemonShop() {
       (maxed ? ' maxed' : '');
     card.dataset.pokemonId = pokemon.id;
     card.innerHTML = `
-      <img class="pokemon-shop-thumb" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
+      <img class="pokemon-shop-thumb" src="${pokemonAssetUrl(pokemon.image)}" alt="${pokemon.name}" draggable="false">
       <div class="pokemon-shop-info">
         <div class="pokemon-shop-name">${pokemon.name}</div>
         <div class="pokemon-shop-desc">${pokemon.desc}</div>
@@ -2113,6 +2136,10 @@ async function ensureLatestAssets() {
     const res = await fetch('/api/config', { cache: 'no-store', credentials: 'include' });
     if (!res.ok) return true;
     const { assetVersion } = await res.json();
+    if (assetVersion) {
+      assetVersionTag = assetVersion;
+      window.__ASSET_VERSION = assetVersion;
+    }
     if (!assetVersion) return true;
     const scriptSrc = document.querySelector('script[src*="game.js"]')?.src || '';
     const loadedV = scriptSrc.match(/[?&]v=([^&]+)/)?.[1];

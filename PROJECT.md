@@ -23,7 +23,7 @@ npm start              # http://localhost:3000
 | `db.js` | PostgreSQL / JSON file |
 | `styles.css` | Стили, анимации Pokemons |
 | `assets/level-*.png` | Фото Вовы по уровням (1–17) |
-| `assets/pokemon/` | Спрайты Mullin и BITCOIN (idle + sheet) |
+| `assets/pokemon/` | Спрайты Mullin, BITCOIN, Nikita (idle + sheet) |
 | `Pokemons/` | Референсы и превью персонажей |
 | `scripts/` | Python: сборка спрайтов из Funko-референсов |
 
@@ -40,6 +40,7 @@ npm start              # http://localhost:3000
 - Конфиг: `POKEMONS` в `game.js` и `game-logic.js` (должны совпадать).
 - **Mullin** (`kirill`): апперкот, `play-uppercut`, 6 кадров.
 - **BITCOIN** (`bitcoin`): световой меч, `play-lightsaber`, 6 кадров (pdstyle poses 1–4, 6, 7).
+- **Nikita** (`nikita`): удар по экрану, `play-punch-break`, 7 кадров.
 - Ферма: 4 слота, цены `[0, 100K, 1M, 10M]`.
 - Пассивный доход: `applyPokemonPunches()` по `punchIntervalMs`.
 
@@ -82,4 +83,5 @@ python scripts/process-bitcoin-sprites.py
 1. Прочитай этот файл и `docs/INSTRUCTIONS.md`.
 2. Логика сейвов — **критично** в `game-logic.js` (`mergeSaves`, `reconcileSaves`, `isFreshResetSave`).
 3. UI покупок — event delegation в `initShopPanels()`, не вешать `click` при каждом `render()`.
-4. Анимации Pokemon — только `background-position` в CSS, без `translateY` (иначе «скролл» в слоте).
+4. Анимации Pokemon — `background-position` + `steps()` на `.pokemon-sprite`; bounce/punch — на `.pokemon-sprite-wrap` (см. `docs/BUGS.md`).
+5. Новый Pokemon — Funko pose sheet → `process-*-sprites.py` → `POKEMONS` (см. `docs/INSTRUCTIONS.md`).
