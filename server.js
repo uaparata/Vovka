@@ -26,6 +26,7 @@ const {
   applyTap,
   applyBuyUpgrade,
   applyBuyPokemon,
+  applyBuyPokemonSlot,
   applyUpgradePokemon,
   mergeUpgradeLevelsSafely,
   reconcileSaves,
@@ -466,6 +467,30 @@ async function start() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Upgrade pokemon failed' });
+    }
+  });
+
+  app.post('/api/buy-pokemon-slot', requireAuth, async (req, res) => {
+    try {
+      const slotIndex = Number(req.body?.slotIndex);
+      if (!Number.isInteger(slotIndex)) {
+        return res.status(400).json({ error: 'invalid_slot' });
+      }
+
+      await withUserLock(req.user.id, async () => {
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        const result = applyBuyPokemonSlot(save, slotIndex);
+        if (!result.ok) {
+          res.status(400).json({ error: result.reason });
+          return;
+        }
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, price: result.price, slotIndex: result.slotIndex });
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Buy pokemon slot failed' });
     }
   });
 

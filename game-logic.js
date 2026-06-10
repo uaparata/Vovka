@@ -27,11 +27,12 @@ const UPGRADES = [
 ];
 
 const MAX_POKEMON_SLOTS = 4;
+const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000];
 
 const POKEMONS = [
   {
     id: 'kirill',
-    name: 'Kirill Mulin',
+    name: 'Mullin',
     image: 'assets/pokemon/kirill-idle.png',
     spriteSheet: 'assets/pokemon/kirill-sheet.png',
     spriteFrames: 6,
@@ -88,6 +89,7 @@ function defaultSave() {
     ownedPokemon: {},
     pokemonMeta: {},
     pokemonFarmBuffer: {},
+    pokemonSlotsUnlocked: 1,
     lastSave: Date.now(),
     lastPassive: Date.now(),
     lastEnergyRegen: Date.now(),
@@ -96,6 +98,23 @@ function defaultSave() {
 
 function countOwnedPokemon(ownedPokemon) {
   return Object.values(ownedPokemon || {}).filter((lvl) => (lvl || 0) > 0).length;
+}
+
+function getUnlockedSlotCount(save) {
+  const n = save?.pokemonSlotsUnlocked ?? 1;
+  return Math.min(Math.max(1, n), MAX_POKEMON_SLOTS);
+}
+
+function getPokemonSlotPrice(slotIndex) {
+  return POKEMON_SLOT_PRICES[slotIndex] ?? Infinity;
+}
+
+function normalizePokemonSlots(save) {
+  const owned = countOwnedPokemon(save.ownedPokemon);
+  const unlocked = getUnlockedSlotCount(save);
+  if (owned > unlocked) {
+    save.pokemonSlotsUnlocked = Math.min(MAX_POKEMON_SLOTS, owned);
+  }
 }
 
 function calcPokemonStats(save) {
@@ -276,6 +295,7 @@ function mergeSaves(...saves) {
     ownedPokemon: mergeOwnedPokemon(...valid.map((s) => s.ownedPokemon)),
     pokemonMeta: valid.reduce((a, b) => ({ ...a, ...(b.pokemonMeta || {}) }), {}),
     pokemonFarmBuffer: valid.reduce((a, b) => ({ ...a, ...(b.pokemonFarmBuffer || {}) }), {}),
+    pokemonSlotsUnlocked: Math.max(...valid.map((s) => getUnlockedSlotCount(s))),
     lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
     lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
@@ -326,6 +346,7 @@ function reconcileSaves(server, client) {
     ownedPokemon: mergeOwnedPokemon(srv.ownedPokemon, client.ownedPokemon),
     pokemonMeta: { ...(srv.pokemonMeta || {}), ...(client.pokemonMeta || {}) },
     pokemonFarmBuffer: { ...(srv.pokemonFarmBuffer || {}), ...(client.pokemonFarmBuffer || {}) },
+    pokemonSlotsUnlocked: Math.max(getUnlockedSlotCount(srv), getUnlockedSlotCount(client)),
     lastPassive: Math.max(srv.lastPassive || 0, client.lastPassive || 0),
     lastEnergyRegen: Math.max(srv.lastEnergyRegen || 0, client.lastEnergyRegen || 0),
     maxLevel: Math.max(srv.maxLevel || 1, client.maxLevel || 1),
@@ -437,7 +458,7 @@ function applyBuyPokemon(save, pokemonId) {
   if ((save.ownedPokemon[pokemonId] || 0) > 0) {
     return { ok: false, reason: 'already_owned' };
   }
-  if (countOwnedPokemon(save.ownedPokemon) >= MAX_POKEMON_SLOTS) {
+  if (countOwnedPokemon(save.ownedPokemon) >= getUnlockedSlotCount(save)) {
     return { ok: false, reason: 'slots_full' };
   }
   if (save.balance < pokemon.price) return { ok: false, reason: 'no_money' };
@@ -449,6 +470,27 @@ function applyBuyPokemon(save, pokemonId) {
   syncMaxLevel(save);
   save.lastSave = Date.now();
   return { ok: true, price: pokemon.price };
+}
+
+function applyBuyPokemonSlot(save, slotIndex) {
+  const index = Number(slotIndex);
+  if (!Number.isInteger(index) || index < 1 || index >= MAX_POKEMON_SLOTS) {
+    return { ok: false, reason: 'invalid_slot' };
+  }
+
+  const unlocked = getUnlockedSlotCount(save);
+  if (index !== unlocked) {
+    return { ok: false, reason: 'wrong_slot_order' };
+  }
+
+  const price = getPokemonSlotPrice(index);
+  if (save.balance < price) return { ok: false, reason: 'no_money' };
+
+  save.balance -= price;
+  save.pokemonSlotsUnlocked = unlocked + 1;
+  syncMaxLevel(save);
+  save.lastSave = Date.now();
+  return { ok: true, price, slotIndex: index };
 }
 
 function applyBuyUpgrade(save, upgradeId) {
@@ -472,6 +514,7 @@ module.exports = {
   UPGRADES,
   POKEMONS,
   MAX_POKEMON_SLOTS,
+  POKEMON_SLOT_PRICES,
   PHOTO_LEVELS,
   defaultSave,
   calcStats,
@@ -493,6 +536,10 @@ module.exports = {
   applyTap,
   applyBuyUpgrade,
   applyBuyPokemon,
+  applyBuyPokemonSlot,
   applyUpgradePokemon,
   countOwnedPokemon,
+  getUnlockedSlotCount,
+  getPokemonSlotPrice,
+  normalizePokemonSlots,
 };

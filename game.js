@@ -113,11 +113,12 @@ const UPGRADES = [
 ];
 
 const MAX_POKEMON_SLOTS = 4;
+const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000];
 
 const POKEMONS = [
   {
     id: 'kirill',
-    name: 'Kirill Mulin',
+    name: 'Mullin',
     image: 'assets/pokemon/kirill-idle.png',
     spriteSheet: 'assets/pokemon/kirill-sheet.png',
     spriteFrames: 6,
@@ -146,6 +147,7 @@ const defaultState = () => ({
   ownedPokemon: {},
   pokemonMeta: {},
   pokemonFarmBuffer: {},
+  pokemonSlotsUnlocked: 1,
   lastSave: Date.now(),
   lastPassive: Date.now(),
   lastEnergyRegen: Date.now(),
@@ -172,6 +174,7 @@ function loadLocalState(userId = null) {
       if (!raw) continue;
       const saved = JSON.parse(raw);
       const loaded = { ...defaultState(), ...saved };
+      normalizePokemonSlots(loaded);
       loaded.maxLevel = Math.max(
         loaded.maxLevel || 1,
         levelFromBalance(loaded.balance || 0)
@@ -203,6 +206,27 @@ function isFreshResetSave(save) {
 
 function countOwnedPokemon(ownedPokemon) {
   return Object.values(ownedPokemon || {}).filter((lvl) => (lvl || 0) > 0).length;
+}
+
+function getUnlockedSlotCount(save = state) {
+  const n = save?.pokemonSlotsUnlocked ?? 1;
+  return Math.min(Math.max(1, n), MAX_POKEMON_SLOTS);
+}
+
+function getPokemonSlotPrice(slotIndex) {
+  return POKEMON_SLOT_PRICES[slotIndex] ?? Infinity;
+}
+
+function hasEmptyUnlockedSlot(save = state) {
+  return countOwnedPokemon(save.ownedPokemon) < getUnlockedSlotCount(save);
+}
+
+function normalizePokemonSlots(save) {
+  const owned = countOwnedPokemon(save.ownedPokemon);
+  const unlocked = getUnlockedSlotCount(save);
+  if (owned > unlocked) {
+    save.pokemonSlotsUnlocked = Math.min(MAX_POKEMON_SLOTS, owned);
+  }
 }
 
 function calcPokemonStats() {
@@ -276,6 +300,7 @@ function mergeSaveStates(...saves) {
     ownedPokemon,
     pokemonMeta: valid.reduce((a, b) => ({ ...a, ...(b.pokemonMeta || {}) }), {}),
     pokemonFarmBuffer: valid.reduce((a, b) => ({ ...a, ...(b.pokemonFarmBuffer || {}) }), {}),
+    pokemonSlotsUnlocked: Math.max(...valid.map((s) => getUnlockedSlotCount(s))),
     lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
     lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
@@ -305,6 +330,7 @@ function getSavePayload() {
     ownedPokemon: state.ownedPokemon,
     pokemonMeta: state.pokemonMeta,
     pokemonFarmBuffer: state.pokemonFarmBuffer,
+    pokemonSlotsUnlocked: state.pokemonSlotsUnlocked,
     lastPassive: state.lastPassive,
     lastEnergyRegen: state.lastEnergyRegen,
     lastSave: state.lastSave,
@@ -333,10 +359,14 @@ function applySaveData(data) {
     pokemonFarmBuffer: isFreshResetSave(data)
       ? { ...base.pokemonFarmBuffer }
       : { ...base.pokemonFarmBuffer, ...(data.pokemonFarmBuffer || {}) },
+    pokemonSlotsUnlocked: isFreshResetSave(data)
+      ? base.pokemonSlotsUnlocked
+      : getUnlockedSlotCount(data),
     lastPassive: data.lastPassive ?? Date.now(),
     lastEnergyRegen: data.lastEnergyRegen ?? data.lastPassive ?? Date.now(),
     lastSave: data.lastSave ?? Date.now(),
   };
+  normalizePokemonSlots(state);
   if (!isFreshResetSave(data)) syncMaxLevel();
 }
 
@@ -877,7 +907,7 @@ function render() {
 
   $('#stat-taps').textContent = formatNum(state.totalTaps);
   $('#stat-earned').textContent = formatNum(state.totalEarned);
-  $('#stat-pokemon').textContent = `${stats.pokemonCount} / ${MAX_POKEMON_SLOTS}`;
+  $('#stat-pokemon').textContent = `${stats.pokemonCount} / ${getUnlockedSlotCount()}`;
   $('#stat-rank').textContent = `${photoLevel.level} — ${photoLevel.name}`;
 
   renderUpgrades();
@@ -886,7 +916,10 @@ function render() {
 }
 
 function getPokemonFarmRenderKey() {
-  return JSON.stringify(state.ownedPokemon || {});
+  return JSON.stringify({
+    owned: state.ownedPokemon || {},
+    slots: getUnlockedSlotCount(),
+  });
 }
 
 function buildPokemonFarm() {
@@ -894,26 +927,47 @@ function buildPokemonFarm() {
   if (!farm) return;
 
   const owned = state.ownedPokemon || {};
+  const unlockedSlots = getUnlockedSlotCount();
   const ownedList = POKEMONS.filter((p) => (owned[p.id] || 0) > 0);
   const slots = [];
 
   for (const pokemon of ownedList) {
     slots.push({ pokemon, level: owned[pokemon.id] });
   }
-  while (slots.length < MAX_POKEMON_SLOTS) {
+  while (slots.length < unlockedSlots) {
     slots.push(null);
   }
 
   farm.innerHTML = '';
-  slots.forEach((slot, index) => {
+  for (let index = 0; index < MAX_POKEMON_SLOTS; index += 1) {
+    const slot = index < unlockedSlots ? slots[index] || null : null;
     const el = document.createElement('div');
+
+    if (index >= unlockedSlots) {
+      const price = getPokemonSlotPrice(index);
+      const canBuy = index === unlockedSlots && state.balance >= price;
+      el.className = 'pokemon-slot locked' + (canBuy ? ' can-buy' : '');
+      el.dataset.slot = String(index);
+      el.innerHTML = `
+        <span class="pokemon-slot-lock">🔒</span>
+        <span class="pokemon-slot-unlock-price">${formatNum(price)}</span>
+        <span class="pokemon-slot-unlock-label">слот</span>
+      `;
+      el.title = `Открыть слот: ${formatNum(price)} зинкоинов`;
+      if (canBuy) {
+        el.addEventListener('click', () => buyPokemonSlot(index));
+      }
+      farm.appendChild(el);
+      continue;
+    }
+
     el.className = 'pokemon-slot' + (slot ? ' filled' : ' empty');
     el.dataset.slot = String(index);
 
     if (!slot) {
       el.innerHTML = '<span class="pokemon-slot-placeholder">+</span>';
       farm.appendChild(el);
-      return;
+      continue;
     }
 
     const { pokemon, level } = slot;
@@ -937,7 +991,7 @@ function buildPokemonFarm() {
     `;
     el.title = `${pokemon.name} · ур. ${level} · +${formatNum(perHour)}/час`;
     farm.appendChild(el);
-  });
+  }
 }
 
 function updatePokemonFarmLevels() {
@@ -955,6 +1009,20 @@ function updatePokemonFarmLevels() {
   }
 }
 
+function updatePokemonFarmLockedSlots() {
+  const farm = $('#pokemon-farm');
+  if (!farm) return;
+
+  const unlocked = getUnlockedSlotCount();
+  farm.querySelectorAll('.pokemon-slot.locked').forEach((el) => {
+    const index = Number(el.dataset.slot);
+    const price = getPokemonSlotPrice(index);
+    const canBuy = index === unlocked && state.balance >= price;
+    el.classList.toggle('can-buy', canBuy);
+    el.onclick = canBuy ? () => buyPokemonSlot(index) : null;
+  });
+}
+
 function renderPokemonFarm() {
   const farm = $('#pokemon-farm');
   if (!farm) return;
@@ -965,6 +1033,7 @@ function renderPokemonFarm() {
     buildPokemonFarm();
   } else {
     updatePokemonFarmLevels();
+    updatePokemonFarmLockedSlots();
   }
 }
 
@@ -1008,7 +1077,7 @@ function renderPokemonShop() {
   list.innerHTML = '';
 
   const owned = state.ownedPokemon || {};
-  const slotsFull = countOwnedPokemon(owned) >= MAX_POKEMON_SLOTS;
+  const slotsFull = !hasEmptyUnlockedSlot();
 
   for (const pokemon of POKEMONS) {
     const level = owned[pokemon.id] || 0;
@@ -1091,9 +1160,39 @@ async function upgradePokemon(pokemon) {
   render();
 }
 
+async function buyPokemonSlot(slotIndex) {
+  const unlocked = getUnlockedSlotCount();
+  if (slotIndex !== unlocked) return;
+  const price = getPokemonSlotPrice(slotIndex);
+  if (state.balance < price) return;
+
+  if (currentUser) {
+    const res = await fetch('/api/buy-pokemon-slot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ slotIndex }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    applySaveData(data.save);
+    pokemonFarmRenderKey = '';
+    saveState();
+    render();
+    refreshLeaderboardIfActive();
+    return;
+  }
+
+  state.balance -= price;
+  state.pokemonSlotsUnlocked = unlocked + 1;
+  pokemonFarmRenderKey = '';
+  saveState();
+  render();
+}
+
 async function buyPokemon(pokemon) {
   if ((state.ownedPokemon[pokemon.id] || 0) > 0) return;
-  if (countOwnedPokemon(state.ownedPokemon) >= MAX_POKEMON_SLOTS) return;
+  if (!hasEmptyUnlockedSlot()) return;
   if (state.balance < pokemon.price) return;
 
   if (currentUser) {

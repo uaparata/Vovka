@@ -368,12 +368,57 @@ body {
   opacity: 0.45;
 }
 
+.pokemon-slot.locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-style: solid;
+  border-color: rgba(148, 163, 184, 0.25);
+  background: linear-gradient(180deg, #141820 0%, #0a0c10 100%);
+  cursor: default;
+}
+
+.pokemon-slot.locked.can-buy {
+  border-color: rgba(249, 115, 22, 0.55);
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.15);
+}
+
+.pokemon-slot.locked.can-buy:active {
+  transform: scale(0.98);
+}
+
+.pokemon-slot-lock {
+  font-size: 1rem;
+  opacity: 0.55;
+  line-height: 1;
+}
+
+.pokemon-slot-unlock-price {
+  font-size: 0.58rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-align: center;
+  line-height: 1.15;
+  padding: 0 4px;
+}
+
+.pokemon-slot-unlock-label {
+  font-size: 0.48rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .pokemon-slot-stage {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  bottom: 22px;
+  bottom: 20px;
   overflow: hidden;
   border-radius: 12px 12px 0 0;
 }
@@ -393,17 +438,17 @@ body {
 .pokemon-sprite {
   position: absolute;
   left: 50%;
-  bottom: 2px;
+  bottom: 0;
   transform: translateX(-50%);
-  height: 92%;
+  height: 100%;
   width: auto;
-  aspect-ratio: 0.56;
-  max-width: 72%;
+  max-width: 100%;
+  aspect-ratio: 320 / 900;
   background-repeat: no-repeat;
   background-size: 600% 100%;
   background-position: 0% center;
   z-index: 2;
-  filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.65));
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
   pointer-events: none;
   user-select: none;
 }
