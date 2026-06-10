@@ -51,26 +51,34 @@ const PHOTO_LEVELS = [
 let lastPhotoLevel = 0;
 let currentPhotoSrc = '';
 
+function proteinTapBonus(lvl) {
+  return Math.floor((lvl * (lvl + 1)) / 2);
+}
+
+function gymTapBonus(lvl) {
+  return proteinTapBonus(lvl) * 3;
+}
+
 const UPGRADES = [
   {
     id: 'protein',
     name: 'Протеин',
     icon: '🥤',
-    desc: '+1 зинкоин за тап',
+    desc: 'Растёт с уровнем: чем выше ур., тем больше за тап',
     basePrice: 50,
-    priceMult: 1.6,
+    priceMult: 1.68,
     maxLevel: 50,
-    effect: (lvl) => ({ perTap: lvl }),
+    effect: (lvl) => ({ perTap: proteinTapBonus(lvl) }),
   },
   {
     id: 'gym',
     name: 'Абонемент в зал',
     icon: '🏋️',
-    desc: '+3 зинкоина за тап',
+    desc: '×3 к бонусу протеина за тап',
     basePrice: 250,
-    priceMult: 1.7,
+    priceMult: 1.72,
     maxLevel: 30,
-    effect: (lvl) => ({ perTap: lvl * 3 }),
+    effect: (lvl) => ({ perTap: gymTapBonus(lvl) }),
   },
   {
     id: 'tshirt',
@@ -665,6 +673,29 @@ function getUpgradePrice(upgrade) {
   return Math.floor(upgrade.basePrice * Math.pow(upgrade.priceMult, lvl));
 }
 
+function getUpgradeTapBonus(upgrade, lvl) {
+  const eff = upgrade.effect(lvl);
+  return eff.perTap || 0;
+}
+
+function getUpgradeNextTapGain(upgrade, lvl) {
+  if (lvl >= upgrade.maxLevel) return 0;
+  return getUpgradeTapBonus(upgrade, lvl + 1) - getUpgradeTapBonus(upgrade, lvl);
+}
+
+function formatUpgradeDesc(upgrade, lvl) {
+  const nextGain = getUpgradeNextTapGain(upgrade, lvl);
+  const total = getUpgradeTapBonus(upgrade, lvl);
+  if (lvl >= upgrade.maxLevel && total > 0) {
+    return `+${formatNum(total)} за тап суммарно`;
+  }
+  if (nextGain > 0) {
+    const totalNext = total + nextGain;
+    return `След. ур.: +${formatNum(nextGain)} за тап · всего +${formatNum(totalNext)}`;
+  }
+  return upgrade.desc;
+}
+
 function getPokemonUpgradePrice(pokemon) {
   const lvl = state.ownedPokemon?.[pokemon.id] || 0;
   if (lvl <= 0 || lvl >= pokemon.maxLevel) return Infinity;
@@ -812,7 +843,6 @@ function render() {
   $('#per-tap').textContent = `+${formatNum(stats.perTap)} за тап`;
   $('#pokemon-hour-total').textContent = `+${formatNum(stats.perHour)}/час`;
   const photoLevel = getPhotoLevelData();
-  $('#level').textContent = photoLevel.level;
   $('#rank').textContent = photoLevel.name;
 
   const vovaImg = $('#vova');
@@ -828,9 +858,9 @@ function render() {
 
   const progressPct = photoLevel.progress * 100;
   $('#level-progress-fill').style.width = progressPct + '%';
-  $('#level-progress-title').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name}`;
+  $('#level-progress-title').textContent = `Уровень ${photoLevel.level}`;
   $('#level-progress-meta').textContent = photoLevel.isMax
-    ? 'Максимум 👑'
+    ? `${photoLevel.name} · макс. 👑`
     : `до ур. ${photoLevel.nextLevel}`;
 
   if (photoLevel.isMax) {
@@ -1109,7 +1139,7 @@ function renderUpgrades() {
       <div class="upgrade-icon">${upgrade.icon}</div>
       <div class="upgrade-info">
         <div class="upgrade-name">${upgrade.name}</div>
-        <div class="upgrade-desc">${upgrade.desc}</div>
+        <div class="upgrade-desc">${formatUpgradeDesc(upgrade, lvl)}</div>
         <div class="upgrade-level">Ур. ${lvl}${maxed ? ' (макс.)' : ''}</div>
       </div>
       <div class="upgrade-price">

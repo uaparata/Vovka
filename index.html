@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=19">
   <style>
     :root {
       --tap-img-size: min(260px, calc(72vw - 28px));
@@ -27,14 +27,13 @@
 <body>
   <div id="app">
     <header class="header">
-      <div class="level-badge">
-        <span class="level-label">Уровень</span>
-        <span id="level" class="level-value">1</span>
-      </div>
       <h1 class="title">Fauck Zini</h1>
-      <div class="header-balance">
-        <span class="coin-icon-sm">💪</span>
-        <span id="balance" class="balance-value-header">0</span>
+      <div class="header-center">
+        <span id="per-tap" class="header-per-tap">+1 за тап</span>
+        <div class="header-balance">
+          <span class="coin-icon-sm">💪</span>
+          <span id="balance" class="balance-value-header">0</span>
+        </div>
       </div>
       <div class="header-right">
         <div class="rank-badge" id="rank">Новичок</div>
@@ -93,10 +92,6 @@
           <span id="pokemon-hour-total" class="pokemon-hour-total">+0/час</span>
         </div>
         <div id="pokemon-farm" class="pokemon-farm"></div>
-      </section>
-
-      <section class="tap-income-bar">
-        <span id="per-tap" class="tap-income-value">+1 за тап</span>
       </section>
 
       <nav class="tabs">
@@ -188,6 +183,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=18"></script>
+  <script src="game.js?v=19"></script>
 </body>
 </html>
