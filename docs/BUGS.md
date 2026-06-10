@@ -1,5 +1,79 @@
 # Баги и исправления
 
+## Исправлено (2026-06-10, v30)
+
+### Pokemon мелкие в слотах + BITCOIN обрезает голову
+
+**Симптом:** Mullin/BITCOIN крошечные внизу слота; при анимации BITCOIN срезаны края головы слева/справа.
+
+**Фикс:**
+- `CHAR_HEIGHT=660`, `MAX_WIDTH_RATIO=1.0` в `pokemon_sprite_common.py` — персонаж заполняет кадр.
+- CSS: масштаб по **ширине** слота (`width: 118%`), idle-pop scale `1.18`, bounce/saber scale до `1.16`.
+- `.pokemon-slot.filled { overflow: visible }` — голова не клипается при анимации.
+- BITCOIN: `BITCOIN_POSE_INSETS` — индивидуальные отступы от соседних поз на raw sheet.
+
+### Имена Renato / Sanya
+
+**Фикс:** id `sasha` → «Renato» (девушка, сумочка); id `renato` → «Sanya» (борода). Ключи сейва не менялись.
+
+### Zhekon — новый Pokemon
+
+**Пайплайн:** `Pokemons/zhekon-funko/` → `process-zhekon-sprites.py` → `POKEMONS` id `zhekon`, 7 кадров, `play-uppercut`.
+
+---
+
+## Исправлено (2026-06-10, финал)
+
+### Jackon: процедурный Funko вместо фото-референса
+
+**Симптом:** первый Jackon был нарисован PIL-кодом — не похож на человека, не годится.
+
+**Правильный пайплайн (зафиксирован в `docs/INSTRUCTIONS.md`):**
+1. Фото → `Pokemons/jackon-funko/jackon-photo-ref.png`
+2. Funko idle из фото → `jackon-funko-idle-raw.png`
+3. Pose sheet 7 кадров (FPV очки + дрон) → `jackon-poses-raw.png`
+4. `python scripts/process-jackon-sprites.py` → game assets
+5. `POKEMONS` в `game.js` + `game-logic.js`
+
+---
+
+### BITCOIN: «половина головы справа / слева» между кадрами
+
+**Симптом:** в анимации меча на одном кадре видна половина головы с соседней позы.
+
+**Причина:** `bitcoin-poses-raw.png` (1024×411) — **6 фигур с неровными интервалами**. Деление `width / 6` захватывало куски соседних поз → в sheet попадали два персонажа в одном кадре 320px.
+
+**Фикс:** ручные границы `BITCOIN_POSE_BOUNDS` в `process-bitcoin-sprites.py`. Не использовать equal split для этого ассета.
+
+---
+
+### Sasha ↔ Renato: перепутаны имена
+
+**Симптом:** в игре имя Renato у бородатого мужчины, Sasha у девушки с сумочкой — наоборот от реальности.
+
+**Фикс:** в `POKEMONS` поменяны **display name** (id `sasha` → «Renato», id `renato` → «Sasha»). Сейвы не ломаются — ключи id те же.
+
+---
+
+### Renato: цвет волос
+
+**Симптом:** у Renato (id `sasha`, девушка с сумочкой) волосы были рыжевато-каштановые, нужен strawberry blonde с фото.
+
+**Фикс:** `scripts/recolor-sasha-hair.py` перекрашивает волосы в pose sheet → пересборка `process-sasha-sprites.py`. Бэкап: `sasha-poses-raw.auburn.bak.png`.
+
+---
+
+### Pokemon слишком мелкие / не выходят за слот
+
+**Симптом:** персонажи не заполняют квадрат; idle не «выскакивает» за границы.
+
+**Фикс:**
+- `CHAR_HEIGHT=360` в `pokemon_sprite_common.py`
+- CSS: `height: 148%`, `max-width: 240%`, idle-pop до `-20%` / scale `1.14`
+- `overflow: visible` на ферме и заполненных слотах в покое
+
+---
+
 ## Исправлено (2026-06-10, поздний вечер)
 
 ### Кнопка «Убрать» не работала — Pokemons нельзя было снять со слота

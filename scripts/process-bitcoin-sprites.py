@@ -1,4 +1,4 @@
-"""Rebuild BITCOIN from clean Funko idle (pose sheet crops clip the head)."""
+"""Rebuild BITCOIN — idle from dedicated raw; poses from manual bounds (not equal split)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,7 +8,6 @@ from PIL import Image
 from pokemon_sprite_common import (
     bbox,
     build_sheet,
-    crop_pose_row,
     place_on_canvas,
     strip_bg,
 )
@@ -21,6 +20,25 @@ IDLE_PATH = ROOT / "assets" / "pokemon" / "bitcoin-idle.png"
 FRAMES = 6
 JUMP_LIFT = {1: -12, 2: -56, 3: -64, 4: -48, 5: -12}
 
+# Pose sheet is 1024×411 with 6 figures at irregular x — equal /6 split bleeds adjacent heads.
+BITCOIN_POSE_BOUNDS = [
+    (8, 168),
+    (168, 338),
+    (338, 508),
+    (508, 678),
+    (678, 848),
+    (848, 1016),
+]
+# Per-pose (left_inset, right_inset) from raw sheet — trims neighbor head bleed.
+BITCOIN_POSE_INSETS = [
+    (12, 12),
+    (30, 26),
+    (26, 18),
+    (18, 18),
+    (30, 24),
+    (24, 32),
+]
+
 
 def load_idle_crop() -> Image.Image:
     img = strip_bg(Image.open(IDLE_RAW).convert("RGBA"))
@@ -28,14 +46,20 @@ def load_idle_crop() -> Image.Image:
     return img.crop((x0, y0, x1 + 1, y1 + 1))
 
 
-def load_pose_crop(index: int) -> Image.Image | None:
-    if not POSE_RAW.exists() or index == 0:
+def load_pose_crop(pose_index: int) -> Image.Image | None:
+    """pose_index 1..5 maps to bounds[1]..bounds[5] (skip phone pose at bounds[0])."""
+    if not POSE_RAW.exists() or pose_index <= 0 or pose_index >= len(BITCOIN_POSE_BOUNDS):
         return None
-    frame = strip_bg(crop_pose_row(Image.open(POSE_RAW).convert("RGBA"), index, FRAMES, pad_ratio=0.18))
-    x0, y0, x1, y1 = bbox(frame)
-    if x1 <= x0 or y1 <= y0:
+    x0, x1 = BITCOIN_POSE_BOUNDS[pose_index]
+    left_inset, right_inset = BITCOIN_POSE_INSETS[pose_index]
+    sheet = Image.open(POSE_RAW).convert("RGBA")
+    crop_x0 = max(0, x0 + left_inset)
+    crop_x1 = min(sheet.width, x1 - right_inset)
+    frame = strip_bg(sheet.crop((crop_x0, 0, crop_x1, sheet.height)))
+    x0b, y0, x1b, y1 = bbox(frame)
+    if x1b <= x0b or y1 <= y0:
         return None
-    return frame.crop((x0, y0, x1 + 1, y1 + 1))
+    return frame.crop((x0b, y0, x1b + 1, y1 + 1))
 
 
 def process_frame(index: int, idle_crop: Image.Image) -> Image.Image:

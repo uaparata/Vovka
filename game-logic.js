@@ -89,7 +89,7 @@ const POKEMONS = [
   },
   {
     id: 'sasha',
-    name: 'Sasha',
+    name: 'Renato',
     image: 'assets/pokemon/sasha-idle.png',
     spriteSheet: 'assets/pokemon/sasha-sheet.png',
     spriteFrames: 7,
@@ -108,7 +108,7 @@ const POKEMONS = [
   },
   {
     id: 'renato',
-    name: 'Renato',
+    name: 'Sanya',
     image: 'assets/pokemon/renato-idle.png',
     spriteSheet: 'assets/pokemon/renato-sheet.png',
     spriteFrames: 7,
@@ -143,6 +143,25 @@ const POKEMONS = [
     punchIntervalMs: 2900,
     weapon: 'fists',
     desc: 'DJI FPV очки + запуск дрона — зинкоины за каждый полёт',
+  },
+  {
+    id: 'zhekon',
+    name: 'Zhekon',
+    image: 'assets/pokemon/zhekon-idle.png',
+    spriteSheet: 'assets/pokemon/zhekon-sheet.png',
+    spriteFrames: 7,
+    animMs: 770,
+    animClass: 'play-uppercut',
+    fillsSlot: true,
+    price: 160_000,
+    upgradeBasePrice: 38_000,
+    upgradePriceAtMax: 110_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 480_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 3000,
+    weapon: 'fists',
+    desc: 'Апперкот + thumbs up — зинкоины за каждый удар',
   },
 ];
 

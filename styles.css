@@ -308,6 +308,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px 12px 12px;
+  overflow: visible;
 }
 
 .pokemon-farm-header {
@@ -335,6 +336,7 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  overflow: visible;
 }
 
 .pokemon-slot {
@@ -355,10 +357,6 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     0 4px 14px rgba(249, 115, 22, 0.12);
-  z-index: 1;
-}
-
-.pokemon-slot.filled:not(.is-animating) {
   overflow: visible;
   z-index: 2;
 }
@@ -451,9 +449,9 @@ body {
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  height: 118%;
-  width: auto;
-  max-width: 178%;
+  width: 108%;
+  height: auto;
+  max-height: 220%;
   aspect-ratio: 320 / 900;
   z-index: 2;
   pointer-events: none;
@@ -461,23 +459,24 @@ body {
 }
 
 .pokemon-sprite-wrap--fills-slot {
-  height: 125%;
-  max-width: 190%;
+  width: 118%;
+  max-height: 240%;
 }
 
 .pokemon-sprite-wrap.is-idle-pop {
-  animation: pokemon-idle-pop 2.6s ease-in-out infinite;
+  animation: pokemon-idle-pop 2.4s ease-in-out infinite;
+  z-index: 4;
 }
 
 @keyframes pokemon-idle-pop {
   0%, 100% {
     transform: translateX(-50%) translateY(0) scale(1);
   }
-  45% {
-    transform: translateX(-50%) translateY(-8%) scale(1.06);
+  42% {
+    transform: translateX(-50%) translateY(-12%) scale(1.12);
   }
-  55% {
-    transform: translateX(-50%) translateY(-10%) scale(1.08);
+  52% {
+    transform: translateX(-50%) translateY(-18%) scale(1.18);
   }
 }
 
@@ -524,12 +523,12 @@ body {
 }
 
 @keyframes pokemon-mullin-bounce {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  18% { transform: translateX(-50%) translateY(-3%); }
-  36% { transform: translateX(-50%) translateY(-14%); }
-  54% { transform: translateX(-50%) translateY(-5%); }
-  72% { transform: translateX(-50%) translateY(-16%); }
-  90% { transform: translateX(-50%) translateY(-4%); }
+  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+  18% { transform: translateX(-50%) translateY(-3%) scale(1.04); }
+  36% { transform: translateX(-50%) translateY(-14%) scale(1.12); }
+  54% { transform: translateX(-50%) translateY(-5%) scale(1.06); }
+  72% { transform: translateX(-50%) translateY(-18%) scale(1.16); }
+  90% { transform: translateX(-50%) translateY(-4%) scale(1.05); }
 }
 
 .pokemon-sprite-wrap.is-punch-anim {
@@ -550,8 +549,8 @@ body {
 }
 
 @keyframes pokemon-saber-sway {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-4%); }
+  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+  50% { transform: translateX(-50%) translateY(-6%) scale(1.1); }
 }
 
 .pokemon-sprite-wrap.is-fpv-anim {
@@ -666,8 +665,8 @@ body {
 }
 
 .pokemon-shop-thumb {
-  width: 48px;
-  height: 72px;
+  width: 56px;
+  height: 84px;
   object-fit: contain;
   object-position: center bottom;
   flex-shrink: 0;

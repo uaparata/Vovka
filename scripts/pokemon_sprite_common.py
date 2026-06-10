@@ -5,10 +5,10 @@ from PIL import Image
 
 FRAME_W = 320
 FRAME_H = 900
-CHAR_HEIGHT = 300
-FEET_PAD = 8
-TOP_PAD = 14
-MAX_WIDTH_RATIO = 0.98
+CHAR_HEIGHT = 660
+FEET_PAD = 6
+TOP_PAD = 8
+MAX_WIDTH_RATIO = 1.0
 
 
 def frame_bounds(width: int, index: int, count: int, inset_ratio: float = 0.0):
