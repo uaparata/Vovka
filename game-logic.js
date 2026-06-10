@@ -68,6 +68,25 @@ const POKEMONS = [
     weapon: 'lightsaber',
     desc: 'B.T.S. — машет синим световым мечом',
   },
+  {
+    id: 'nikita',
+    name: 'Nikita',
+    image: 'assets/pokemon/nikita-idle.png',
+    spriteSheet: 'assets/pokemon/nikita-sheet.png',
+    spriteFrames: 7,
+    animMs: 770,
+    animClass: 'play-punch-break',
+    fillsSlot: true,
+    price: 80_000,
+    upgradeBasePrice: 30_000,
+    upgradePriceAtMax: 90_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 450_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2800,
+    weapon: 'fists',
+    desc: 'Бьёт экран — зинкоины за каждый удар',
+  },
 ];
 
 function getPokemonPerHour(pokemon, level) {

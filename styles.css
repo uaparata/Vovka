@@ -333,18 +333,18 @@ body {
 
 .pokemon-farm {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
 .pokemon-slot {
   position: relative;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 3 / 4;
   border-radius: 14px;
   border: 1px dashed var(--border);
   background: linear-gradient(180deg, #1a2030 0%, #0a0e14 55%, #06080c 100%);
   overflow: hidden;
-  min-height: 128px;
+  min-height: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -418,9 +418,10 @@ body {
   left: 0;
   right: 0;
   top: 0;
-  bottom: 20px;
+  bottom: 22px;
   overflow: hidden;
   border-radius: 12px 12px 0 0;
+  contain: layout paint;
 }
 
 .pokemon-slot-floor {
@@ -439,33 +440,35 @@ body {
   --sprite-frames: 6;
   position: absolute;
   left: 50%;
-  bottom: 0;
+  bottom: 2px;
   transform: translateX(-50%);
-  width: 100%;
-  height: auto;
+  width: auto;
+  height: 100%;
+  max-width: 106%;
   aspect-ratio: 320 / 900;
   background-repeat: no-repeat;
   background-size: calc(var(--sprite-frames) * 100%) 100%;
   background-position: 0% bottom;
   z-index: 2;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.65));
   pointer-events: none;
   user-select: none;
   image-rendering: auto;
 }
 
 .pokemon-sprite--fills-slot {
-  width: 118%;
-  bottom: -8px;
+  height: 98%;
+  max-width: 108%;
+  bottom: 0;
 }
 
 .pokemon-slot.filled.is-animating {
-  overflow: visible;
-  z-index: 6;
+  overflow: hidden;
+  z-index: 4;
 }
 
 .pokemon-slot.filled.is-animating .pokemon-slot-stage {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .pokemon-sprite--lightsaber {
@@ -473,11 +476,8 @@ body {
 }
 
 .pokemon-sprite.play-uppercut {
-  animation-fill-mode: forwards;
-}
-
-.pokemon-sprite--mullin.play-uppercut {
   animation-name: pokemon-mullin-jump;
+  animation-fill-mode: forwards;
 }
 
 @keyframes pokemon-uppercut-sprite {
@@ -492,6 +492,42 @@ body {
 .pokemon-sprite.play-lightsaber {
   animation-name: pokemon-lightsaber-sprite;
   animation-fill-mode: forwards;
+}
+
+.pokemon-sprite.play-punch-break {
+  animation-name: pokemon-nikita-punch;
+  animation-fill-mode: forwards;
+}
+
+@keyframes pokemon-nikita-punch {
+  0% {
+    background-position: 0% bottom;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  16.666% {
+    background-position: 16.666% bottom;
+    transform: translateX(-50%) translateY(-1%) scale(1.02);
+  }
+  33.333% {
+    background-position: 33.333% bottom;
+    transform: translateX(-50%) translateY(-4%) scale(1.05);
+  }
+  50% {
+    background-position: 50% bottom;
+    transform: translateX(-50%) translateY(-6%) scale(1.08);
+  }
+  66.666% {
+    background-position: 66.666% bottom;
+    transform: translateX(-50%) translateY(-5%) scale(1.06);
+  }
+  83.333% {
+    background-position: 83.333% bottom;
+    transform: translateX(-50%) translateY(-2%) scale(1.02);
+  }
+  100% {
+    background-position: 100% bottom;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
 }
 
 @keyframes pokemon-mullin-jump {
@@ -572,13 +608,13 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2;
-  padding: 5px 4px 6px;
+  z-index: 3;
+  padding: 6px 4px 5px;
   font-size: 0.52rem;
   font-weight: 800;
   text-align: center;
   color: var(--text);
-  background: linear-gradient(transparent, rgba(13, 17, 23, 0.95));
+  background: linear-gradient(transparent 0%, rgba(13, 17, 23, 0.88) 35%, rgba(13, 17, 23, 0.98) 100%);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -154,7 +154,28 @@ const POKEMONS = [
     weapon: 'lightsaber',
     desc: 'B.T.S. — машет синим световым мечом',
   },
+  {
+    id: 'nikita',
+    name: 'Nikita',
+    image: 'assets/pokemon/nikita-idle.png',
+    spriteSheet: 'assets/pokemon/nikita-sheet.png',
+    spriteFrames: 7,
+    animMs: 770,
+    animClass: 'play-punch-break',
+    fillsSlot: true,
+    price: 80_000,
+    upgradeBasePrice: 30_000,
+    upgradePriceAtMax: 90_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 450_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2800,
+    weapon: 'fists',
+    desc: 'Бьёт экран — зинкоины за каждый удар',
+  },
 ];
+
+const POKEMON_ANIM_CLASSES = [...new Set(POKEMONS.map((p) => p.animClass).filter(Boolean))];
 
 function getPokemonPerHour(pokemon, level) {
   if (!pokemon || level <= 0) return 0;
@@ -1153,7 +1174,7 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   sprite.style.setProperty('--sprite-frames', String(frames));
   sprite.style.animationDuration = `${animMs}ms`;
   sprite.style.animationTimingFunction = `steps(${Math.max(1, frames - 1)})`;
-  sprite.classList.remove('play-uppercut', 'play-lightsaber');
+  sprite.classList.remove(...POKEMON_ANIM_CLASSES);
   void sprite.offsetWidth;
   sprite.classList.add(animClass);
 
@@ -1161,7 +1182,7 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   if (slot) slot.classList.add('is-animating');
 
   const onEnd = () => {
-    sprite.classList.remove('play-uppercut', 'play-lightsaber');
+    sprite.classList.remove(...POKEMON_ANIM_CLASSES);
     sprite.style.backgroundPosition = '0% bottom';
     sprite.style.transform = '';
     sprite.removeEventListener('animationend', onEnd);
