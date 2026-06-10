@@ -333,7 +333,7 @@ body {
 
 .pokemon-farm {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
@@ -413,6 +413,11 @@ body {
   letter-spacing: 0.06em;
 }
 
+.pokemon-slot.filled.is-animating {
+  overflow: visible;
+  z-index: 6;
+}
+
 .pokemon-slot-stage {
   position: absolute;
   left: 0;
@@ -421,6 +426,10 @@ body {
   bottom: 20px;
   overflow: hidden;
   border-radius: 12px 12px 0 0;
+}
+
+.pokemon-slot.filled.is-animating .pokemon-slot-stage {
+  overflow: visible;
 }
 
 .pokemon-slot-floor {
@@ -453,10 +462,25 @@ body {
   user-select: none;
 }
 
+.pokemon-sprite--fills-slot {
+  height: 118%;
+  max-width: 118%;
+  bottom: -4px;
+}
+
+.pokemon-sprite--lightsaber {
+  height: 96%;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
+}
+
 .pokemon-sprite.play-uppercut {
   animation-name: pokemon-uppercut-sprite;
   animation-timing-function: steps(5);
   animation-fill-mode: forwards;
+}
+
+.pokemon-sprite--fills-slot.play-uppercut {
+  animation-name: pokemon-uppercut-sprite-full;
 }
 
 @keyframes pokemon-uppercut-sprite {
@@ -465,6 +489,54 @@ body {
   }
   to {
     background-position: 100% center;
+  }
+}
+
+@keyframes pokemon-uppercut-sprite-full {
+  0% {
+    background-position: 0% center;
+    transform: translateX(-50%) translateY(0);
+  }
+  35% {
+    background-position: 40% center;
+    transform: translateX(-50%) translateY(-6%);
+  }
+  55% {
+    background-position: 60% center;
+    transform: translateX(-50%) translateY(-14%);
+  }
+  75% {
+    background-position: 80% center;
+    transform: translateX(-50%) translateY(-10%);
+  }
+  100% {
+    background-position: 100% center;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.pokemon-sprite.play-lightsaber {
+  animation-name: pokemon-lightsaber-sprite;
+  animation-timing-function: steps(5);
+  animation-fill-mode: forwards;
+}
+
+@keyframes pokemon-lightsaber-sprite {
+  0% {
+    background-position: 0% center;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 6px rgba(56, 189, 248, 0.25));
+  }
+  40% {
+    background-position: 40% center;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.65));
+  }
+  70% {
+    background-position: 70% center;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 18px rgba(96, 165, 250, 0.85));
+  }
+  100% {
+    background-position: 100% center;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
   }
 }
 

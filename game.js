@@ -112,8 +112,8 @@ const UPGRADES = [
   },
 ];
 
-const MAX_POKEMON_SLOTS = 4;
-const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000];
+const MAX_POKEMON_SLOTS = 6;
+const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000, 50_000_000, 250_000_000];
 
 const POKEMONS = [
   {
@@ -123,16 +123,51 @@ const POKEMONS = [
     spriteSheet: 'assets/pokemon/kirill-sheet.png',
     spriteFrames: 6,
     animMs: 540,
+    animClass: 'play-uppercut',
+    fillsSlot: true,
     price: 10_000,
-    upgradeBasePrice: 7_500,
-    upgradePriceMult: 1.75,
-    maxLevel: 20,
-    perHourBase: 500,
+    upgradeBasePrice: 25_000,
+    upgradePriceAtMax: 100_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 500_000_000,
+    perHourCurve: 'cubic',
     punchIntervalMs: 2500,
     weapon: 'fists',
     desc: 'Апперкот + прыжок — зинкоины за каждый удар',
   },
+  {
+    id: 'bitcoin',
+    name: 'BITCOIN',
+    image: 'assets/pokemon/bitcoin-idle.png',
+    spriteSheet: 'assets/pokemon/bitcoin-sheet.png',
+    spriteFrames: 6,
+    animMs: 620,
+    animClass: 'play-lightsaber',
+    fillsSlot: false,
+    price: 50_000,
+    upgradeBasePrice: 35_000,
+    upgradePriceAtMax: 80_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 400_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2200,
+    weapon: 'lightsaber',
+    desc: 'B.T.S. — машет синим световым мечом',
+  },
 ];
+
+function getPokemonPerHour(pokemon, level) {
+  if (!pokemon || level <= 0) return 0;
+  const max = pokemon.maxLevel || 1;
+  if (pokemon.perHourAtMax) {
+    const t = level / max;
+    if (pokemon.perHourCurve === 'cubic') {
+      return Math.floor(pokemon.perHourAtMax * t * t * t);
+    }
+    return Math.floor(pokemon.perHourAtMax * t);
+  }
+  return Math.floor((pokemon.perHourBase || 0) * level);
+}
 
 let pokemonFarmRenderKey = '';
 
@@ -239,7 +274,7 @@ function calcPokemonStats() {
     const lvl = owned[pokemon.id] || 0;
     if (lvl <= 0) continue;
     count += 1;
-    const ph = pokemon.perHourBase * lvl;
+    const ph = getPokemonPerHour(pokemon, lvl);
     perHour += ph;
     active.push({
       id: pokemon.id,
@@ -729,6 +764,13 @@ function formatUpgradeDesc(upgrade, lvl) {
 function getPokemonUpgradePrice(pokemon) {
   const lvl = state.ownedPokemon?.[pokemon.id] || 0;
   if (lvl <= 0 || lvl >= pokemon.maxLevel) return Infinity;
+  if (pokemon.upgradePriceAtMax && pokemon.maxLevel > 1) {
+    const base = pokemon.upgradeBasePrice;
+    const max = pokemon.upgradePriceAtMax;
+    const steps = pokemon.maxLevel - 1;
+    const t = (steps - lvl) / steps;
+    return Math.floor(max * Math.pow(base / max, t));
+  }
   return Math.floor(pokemon.upgradeBasePrice * Math.pow(pokemon.upgradePriceMult, lvl - 1));
 }
 
@@ -781,7 +823,7 @@ function applyPokemonPunches(now = Date.now()) {
     const punches = Math.floor(elapsed / def.punchIntervalMs);
     if (punches <= 0) continue;
 
-    const coinsPerPunch = (def.perHourBase * p.level * def.punchIntervalMs) / 3_600_000;
+    const coinsPerPunch = (p.perHour * def.punchIntervalMs) / 3_600_000;
     state.pokemonFarmBuffer[p.id] = (state.pokemonFarmBuffer[p.id] || 0) + punches * coinsPerPunch;
     const whole = Math.floor(state.pokemonFarmBuffer[p.id]);
     if (whole > 0) {
@@ -971,14 +1013,18 @@ function buildPokemonFarm() {
     }
 
     const { pokemon, level } = slot;
-    const perHour = pokemon.perHourBase * level;
+    const perHour = getPokemonPerHour(pokemon, level);
     const sheet = pokemon.spriteSheet || pokemon.image;
     const frames = pokemon.spriteFrames || 6;
+    const spriteClass =
+      'pokemon-sprite' +
+      (pokemon.fillsSlot ? ' pokemon-sprite--fills-slot' : '') +
+      (pokemon.weapon === 'lightsaber' ? ' pokemon-sprite--lightsaber' : '');
     el.innerHTML = `
       <div class="pokemon-slot-stage">
         <div class="pokemon-slot-floor"></div>
         <div
-          class="pokemon-sprite"
+          class="${spriteClass}"
           data-pokemon-id="${pokemon.id}"
           data-frames="${frames}"
           style="background-image: url('${sheet}')"
@@ -1002,7 +1048,7 @@ function updatePokemonFarmLevels() {
     const sprite = document.querySelector(`.pokemon-sprite[data-pokemon-id="${pokemon.id}"]`);
     const slot = sprite?.closest('.pokemon-slot');
     if (!slot) continue;
-    const perHour = pokemon.perHourBase * level;
+    const perHour = getPokemonPerHour(pokemon, level);
     const lvlEl = slot.querySelector('.pokemon-slot-level');
     if (lvlEl) lvlEl.textContent = `ур. ${level}`;
     slot.title = `${pokemon.name} · ур. ${level} · +${formatNum(perHour)}/час`;
@@ -1043,19 +1089,23 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
 
   const def = POKEMONS.find((p) => p.id === pokemonId);
   const animMs = def?.animMs || 540;
+  const animClass = def?.animClass || 'play-uppercut';
   sprite.style.animationDuration = `${animMs}ms`;
-  sprite.classList.remove('play-uppercut');
+  sprite.classList.remove('play-uppercut', 'play-lightsaber');
   void sprite.offsetWidth;
-  sprite.classList.add('play-uppercut');
+  sprite.classList.add(animClass);
+
+  const slot = sprite.closest('.pokemon-slot');
+  if (slot) slot.classList.add('is-animating');
 
   const onEnd = () => {
-    sprite.classList.remove('play-uppercut');
+    sprite.classList.remove('play-uppercut', 'play-lightsaber');
     sprite.style.backgroundPosition = '0% center';
     sprite.removeEventListener('animationend', onEnd);
+    if (slot) slot.classList.remove('is-animating');
   };
   sprite.addEventListener('animationend', onEnd);
 
-  const slot = sprite.closest('.pokemon-slot');
   if (!slot || !showCoin || earned <= 0) return;
   const coin = document.createElement('span');
   coin.className = 'pokemon-slot-coin';
@@ -1086,7 +1136,9 @@ function renderPokemonShop() {
     const canBuy = !isOwned && !slotsFull && state.balance >= pokemon.price;
     const upPrice = getPokemonUpgradePrice(pokemon);
     const canUpgrade = isOwned && !maxed && state.balance >= upPrice;
-    const perHour = isOwned ? pokemon.perHourBase * level : pokemon.perHourBase;
+    const perHour = isOwned
+      ? getPokemonPerHour(pokemon, level)
+      : getPokemonPerHour(pokemon, 1);
 
     const card = document.createElement('div');
     card.className =
@@ -1103,7 +1155,7 @@ function renderPokemonShop() {
           ${
             isOwned
               ? `Ур. ${level}${maxed ? ' (макс.)' : ''} · +${formatNum(perHour)}/час`
-              : `+${formatNum(pokemon.perHourBase)}/час · кулаки`
+              : `+${formatNum(getPokemonPerHour(pokemon, 1))}/час · ${pokemon.weapon === 'lightsaber' ? 'меч' : 'кулаки'}`
           }
         </div>
       </div>
@@ -1462,10 +1514,8 @@ function applyPassive() {
 }
 
 function estimatePokemonPunchCoins(pokemon, level) {
-  return Math.max(
-    1,
-    Math.floor((pokemon.perHourBase * level * pokemon.punchIntervalMs) / 3_600_000)
-  );
+  const perHour = getPokemonPerHour(pokemon, level);
+  return Math.max(1, Math.floor((perHour * pokemon.punchIntervalMs) / 3_600_000));
 }
 
 function initPokemonVisualLoop() {

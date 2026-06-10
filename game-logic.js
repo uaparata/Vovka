@@ -26,8 +26,8 @@ const UPGRADES = [
   { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl * 0.1 }) },
 ];
 
-const MAX_POKEMON_SLOTS = 4;
-const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000];
+const MAX_POKEMON_SLOTS = 6;
+const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000, 50_000_000, 250_000_000];
 
 const POKEMONS = [
   {
@@ -37,18 +37,61 @@ const POKEMONS = [
     spriteSheet: 'assets/pokemon/kirill-sheet.png',
     spriteFrames: 6,
     animMs: 540,
+    animClass: 'play-uppercut',
+    fillsSlot: true,
     price: 10_000,
-    upgradeBasePrice: 7_500,
-    upgradePriceMult: 1.75,
-    maxLevel: 20,
-    perHourBase: 500,
+    upgradeBasePrice: 25_000,
+    upgradePriceAtMax: 100_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 500_000_000,
+    perHourCurve: 'cubic',
     punchIntervalMs: 2500,
     weapon: 'fists',
+    desc: 'Апперкот + прыжок — зинкоины за каждый удар',
+  },
+  {
+    id: 'bitcoin',
+    name: 'BITCOIN',
+    image: 'assets/pokemon/bitcoin-idle.png',
+    spriteSheet: 'assets/pokemon/bitcoin-sheet.png',
+    spriteFrames: 6,
+    animMs: 620,
+    animClass: 'play-lightsaber',
+    fillsSlot: false,
+    price: 50_000,
+    upgradeBasePrice: 35_000,
+    upgradePriceAtMax: 80_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 400_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2200,
+    weapon: 'lightsaber',
+    desc: 'B.T.S. — машет синим световым мечом',
   },
 ];
 
+function getPokemonPerHour(pokemon, level) {
+  if (!pokemon || level <= 0) return 0;
+  const max = pokemon.maxLevel || 1;
+  if (pokemon.perHourAtMax) {
+    const t = level / max;
+    if (pokemon.perHourCurve === 'cubic') {
+      return Math.floor(pokemon.perHourAtMax * t * t * t);
+    }
+    return Math.floor(pokemon.perHourAtMax * t);
+  }
+  return Math.floor((pokemon.perHourBase || 0) * level);
+}
+
 function getPokemonUpgradePrice(pokemon, level) {
   if (!pokemon || level <= 0 || level >= pokemon.maxLevel) return Infinity;
+  if (pokemon.upgradePriceAtMax && pokemon.maxLevel > 1) {
+    const base = pokemon.upgradeBasePrice;
+    const max = pokemon.upgradePriceAtMax;
+    const steps = pokemon.maxLevel - 1;
+    const t = (steps - level) / steps;
+    return Math.floor(max * Math.pow(base / max, t));
+  }
   return Math.floor(pokemon.upgradeBasePrice * Math.pow(pokemon.upgradePriceMult, level - 1));
 }
 
@@ -127,7 +170,7 @@ function calcPokemonStats(save) {
     const lvl = owned[pokemon.id] || 0;
     if (lvl <= 0) continue;
     count += 1;
-    const ph = pokemon.perHourBase * lvl;
+    const ph = getPokemonPerHour(pokemon, lvl);
     perHour += ph;
     active.push({
       id: pokemon.id,
@@ -380,7 +423,7 @@ function applyPokemonPunches(save, now = Date.now()) {
     const punches = Math.floor(elapsed / def.punchIntervalMs);
     if (punches <= 0) continue;
 
-    const coinsPerPunch = (def.perHourBase * p.level * def.punchIntervalMs) / 3_600_000;
+    const coinsPerPunch = (p.perHour * def.punchIntervalMs) / 3_600_000;
     save.pokemonFarmBuffer[p.id] = (save.pokemonFarmBuffer[p.id] || 0) + punches * coinsPerPunch;
     const whole = Math.floor(save.pokemonFarmBuffer[p.id]);
     if (whole > 0) {
@@ -520,6 +563,7 @@ module.exports = {
   calcStats,
   calcPokemonStats,
   getUpgradePrice,
+  getPokemonPerHour,
   getPokemonUpgradePrice,
   levelFromBalance,
   syncMaxLevel,
