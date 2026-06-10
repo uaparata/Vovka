@@ -5,20 +5,18 @@ from pathlib import Path
 
 from PIL import Image
 
-from sprite_seam_fix import fix_center_seam
-
 ROOT = Path(__file__).resolve().parents[1]
 FRAME_W = 320
 FRAME_H = 900
 FRAMES = 6
 
 JUMP_KEYS = [
-    (0.0, 1.0),
-    (0.02, 0.96),
-    (-0.14, 1.0),
-    (0.0, 1.02),
-    (-0.22, 1.0),
-    (0.04, 0.94),
+    (0.0, 1.1),
+    (0.01, 1.08),
+    (-0.18, 1.06),
+    (0.0, 1.1),
+    (-0.26, 1.04),
+    (0.02, 1.08),
 ]
 
 
@@ -62,14 +60,14 @@ def build_frame(source: Image.Image, y_ratio: float, scale: float) -> Image.Imag
     cropped = source.crop((x0, y0, x1 + 1, y1 + 1))
     canvas = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
 
-    base_scale = min((FRAME_W * 0.99) / cropped.width, (FRAME_H * 0.97) / cropped.height)
+    base_scale = min((FRAME_W * 1.08) / cropped.width, (FRAME_H * 1.0) / cropped.height)
     s = base_scale * scale
     nw = max(1, int(cropped.width * s))
     nh = max(1, int(cropped.height * s))
     resized = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
 
     x = (FRAME_W - nw) // 2
-    y = FRAME_H - nh - 2 + int(y_ratio * FRAME_H)
+    y = FRAME_H - nh - 16 + int(y_ratio * FRAME_H)
     canvas.paste(resized, (x, y), resized)
     return canvas
 
@@ -82,7 +80,7 @@ def load_source(src: Path, crop_frame_index: int | None = None) -> Image.Image:
         x1 = int(round((crop_frame_index + 1) * w / FRAMES))
         inset = max(2, int((x1 - x0) * 0.02))
         img = img.crop((x0 + inset, 0, x1 - inset, h))
-    return strip_bg(fix_center_seam(img))
+    return strip_bg(img)
 
 
 def build_from_source(src: Path, out_idle: Path, out_sheet: Path, crop_frame_index: int | None = None):
@@ -105,21 +103,6 @@ def main():
         ROOT / "assets" / "pokemon" / "kirill-idle.png",
         ROOT / "assets" / "pokemon" / "kirill-sheet.png",
     )
-    bitcoin_src = ROOT / "assets" / "pokemon" / "bitcoin-funko-idle-raw.png"
-    if not bitcoin_src.exists():
-        bitcoin_src = ROOT / "assets" / "pokemon" / "bitcoin-sheet-raw.png"
-        build_from_source(
-            bitcoin_src,
-            ROOT / "assets" / "pokemon" / "bitcoin-idle.png",
-            ROOT / "assets" / "pokemon" / "bitcoin-sheet.png",
-            crop_frame_index=0,
-        )
-    else:
-        build_from_source(
-            bitcoin_src,
-            ROOT / "assets" / "pokemon" / "bitcoin-idle.png",
-            ROOT / "assets" / "pokemon" / "bitcoin-sheet.png",
-        )
 
 
 if __name__ == "__main__":

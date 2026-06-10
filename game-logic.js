@@ -55,7 +55,7 @@ const POKEMONS = [
     image: 'assets/pokemon/bitcoin-idle.png',
     spriteSheet: 'assets/pokemon/bitcoin-sheet.png',
     spriteFrames: 6,
-    animMs: 620,
+    animMs: 720,
     animClass: 'play-lightsaber',
     fillsSlot: true,
     price: 50_000,
@@ -460,6 +460,23 @@ function saveNeedsSync(cloud, merged) {
   );
 }
 
+function estimatePokemonPassiveAllowance(server, client, now = Date.now()) {
+  const srvLast = server?.lastPassive || 0;
+  const cliLast = client?.lastPassive || 0;
+  const anchor = Math.min(srvLast || now, cliLast || now);
+  const elapsedMs = Math.min(
+    Math.max(0, now - anchor),
+    MAX_PASSIVE_ELAPSED_SEC * 1000
+  );
+  if (elapsedMs <= 0) return 0;
+
+  const preview = mergeSaves(server || defaultSave(), client || defaultSave());
+  const { perHour } = calcPokemonStats(preview);
+  if (perHour <= 0) return 0;
+
+  return Math.floor((perHour * elapsedMs) / 3_600_000) + 500;
+}
+
 function reconcileSaves(server, client) {
   const srv = server || defaultSave();
   if (!client) {
@@ -475,17 +492,15 @@ function reconcileSaves(server, client) {
   }
 
   const tapDelta = Math.max(0, Math.floor((client.totalTaps || 0) - (srv.totalTaps || 0)));
-  const allowance = estimateMaxEarnedFromTaps(tapDelta);
+  const tapAllowance = estimateMaxEarnedFromTaps(tapDelta);
+  const passiveAllowance = estimatePokemonPassiveAllowance(srv, client);
+  const allowance = tapAllowance + passiveAllowance;
+  const mergedBalance = Math.max(client.balance || 0, srv.balance || 0);
+  const mergedEarned = Math.max(client.totalEarned || 0, srv.totalEarned || 0);
 
   const sanitized = {
-    balance: Math.min(
-      Math.max(client.balance || 0, srv.balance || 0),
-      (srv.balance || 0) + allowance
-    ),
-    totalEarned: Math.min(
-      Math.max(client.totalEarned || 0, srv.totalEarned || 0),
-      (srv.totalEarned || 0) + allowance
-    ),
+    balance: Math.min(mergedBalance, (srv.balance || 0) + allowance),
+    totalEarned: Math.min(mergedEarned, (srv.totalEarned || 0) + allowance),
     totalTaps: Math.min(
       Math.max(client.totalTaps || 0, srv.totalTaps || 0),
       (srv.totalTaps || 0) + tapDelta + 30
@@ -677,6 +692,7 @@ module.exports = {
   isFreshResetSave,
   totalUpgradeSpend,
   estimateMaxEarnedFromTaps,
+  estimatePokemonPassiveAllowance,
   mergeUpgradeLevelsSafely,
   mergeOwnedPokemon,
   mergeSaves,

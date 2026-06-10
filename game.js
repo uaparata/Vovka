@@ -141,7 +141,7 @@ const POKEMONS = [
     image: 'assets/pokemon/bitcoin-idle.png',
     spriteSheet: 'assets/pokemon/bitcoin-sheet.png',
     spriteFrames: 6,
-    animMs: 620,
+    animMs: 720,
     animClass: 'play-lightsaber',
     fillsSlot: true,
     price: 50_000,
@@ -434,15 +434,20 @@ function getSavePayload() {
   };
 }
 
-function applySaveData(data) {
+function applySaveData(data, options = {}) {
+  const { authoritative = false } = options;
   const base = defaultState();
   const prevMaxLevel = state.maxLevel || 1;
+  const prevBalance = state.balance || 0;
+  const prevEarned = state.totalEarned || 0;
+  const incomingBalance = data.balance ?? 0;
+  const incomingEarned = data.totalEarned ?? 0;
   state = {
     ...base,
-    balance: data.balance ?? 0,
+    balance: authoritative ? incomingBalance : Math.max(incomingBalance, prevBalance),
+    totalEarned: authoritative ? incomingEarned : Math.max(incomingEarned, prevEarned),
     energy: data.energy ?? 320,
     totalTaps: data.totalTaps ?? 0,
-    totalEarned: data.totalEarned ?? 0,
     maxLevel: Math.max(data.maxLevel ?? 1, prevMaxLevel),
     peakBalance: Math.max(data.peakBalance ?? 0, state.peakBalance ?? 0),
     upgradeLevels: isFreshResetSave(data)
@@ -1082,7 +1087,7 @@ function buildPokemonFarm() {
           class="${spriteClass}"
           data-pokemon-id="${pokemon.id}"
           data-frames="${frames}"
-          style="background-image: url('${sheet}')"
+          style="--sprite-frames: ${frames}; background-image: url('${sheet}')"
           role="img"
           aria-label="${pokemon.name}"
         ></div>
@@ -1142,9 +1147,12 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   if (!sprite) return;
 
   const def = POKEMONS.find((p) => p.id === pokemonId);
+  const frames = def?.spriteFrames || Number(sprite.dataset.frames) || 6;
   const animMs = def?.animMs || 540;
   const animClass = def?.animClass || 'play-uppercut';
+  sprite.style.setProperty('--sprite-frames', String(frames));
   sprite.style.animationDuration = `${animMs}ms`;
+  sprite.style.animationTimingFunction = `steps(${Math.max(1, frames - 1)})`;
   sprite.classList.remove('play-uppercut', 'play-lightsaber');
   void sprite.offsetWidth;
   sprite.classList.add(animClass);
@@ -1154,7 +1162,8 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
 
   const onEnd = () => {
     sprite.classList.remove('play-uppercut', 'play-lightsaber');
-    sprite.style.backgroundPosition = '0% center';
+    sprite.style.backgroundPosition = '0% bottom';
+    sprite.style.transform = '';
     sprite.removeEventListener('animationend', onEnd);
     if (slot) slot.classList.remove('is-animating');
   };
@@ -1259,7 +1268,7 @@ async function upgradePokemon(pokemon) {
     });
     if (!res.ok) return;
     const data = await res.json();
-    applySaveData(data.save);
+    applySaveData(data.save, { authoritative: true });
     pokemonFarmRenderKey = '';
     triggerPokemonUppercut(pokemon.id, 0, false);
     saveState();
@@ -1297,7 +1306,7 @@ async function buyPokemonSlot(slotIndex) {
     });
     if (!res.ok) return;
     const data = await res.json();
-    applySaveData(data.save);
+    applySaveData(data.save, { authoritative: true });
     pokemonFarmRenderKey = '';
     saveState();
     render();
@@ -1331,7 +1340,7 @@ async function togglePokemonDeploy(pokemon) {
     });
     if (!res.ok) return;
     const data = await res.json();
-    applySaveData(data.save);
+    applySaveData(data.save, { authoritative: true });
     pokemonFarmRenderKey = '';
     saveState();
     render();
@@ -1373,7 +1382,7 @@ async function buyPokemon(pokemon) {
     });
     if (!res.ok) return;
     const data = await res.json();
-    applySaveData(data.save);
+    applySaveData(data.save, { authoritative: true });
     pokemonFarmRenderKey = '';
     saveState();
     render();
@@ -1445,7 +1454,7 @@ async function buyUpgrade(upgrade) {
     });
     if (!res.ok) return;
     const data = await res.json();
-    applySaveData(data.save);
+    applySaveData(data.save, { authoritative: true });
     saveState();
     render();
     refreshLeaderboardIfActive();
@@ -1583,7 +1592,7 @@ async function sendTapToServer(e, retries = 2) {
           const tick = await fetch('/api/tick', { method: 'POST', credentials: 'include' });
           if (tick.ok) {
             const { save } = await tick.json();
-            applySaveData(save);
+            applySaveData(mergeSaveStates(state, save));
           }
         } catch (_) {}
         render();

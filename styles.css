@@ -436,28 +436,36 @@ body {
 }
 
 .pokemon-sprite {
+  --sprite-frames: 6;
   position: absolute;
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  height: 100%;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  height: auto;
   aspect-ratio: 320 / 900;
   background-repeat: no-repeat;
-  background-size: 600% 100%;
-  background-position: 0% center;
+  background-size: calc(var(--sprite-frames) * 100%) 100%;
+  background-position: 0% bottom;
   z-index: 2;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
   pointer-events: none;
   user-select: none;
+  image-rendering: auto;
 }
 
 .pokemon-sprite--fills-slot {
-  height: 148%;
-  max-width: 148%;
-  bottom: 0;
-  transform: translateX(-50%) translateY(6%);
+  width: 118%;
+  bottom: -8px;
+}
+
+.pokemon-slot.filled.is-animating {
+  overflow: visible;
+  z-index: 6;
+}
+
+.pokemon-slot.filled.is-animating .pokemon-slot-stage {
+  overflow: visible;
 }
 
 .pokemon-sprite--lightsaber {
@@ -465,41 +473,81 @@ body {
 }
 
 .pokemon-sprite.play-uppercut {
-  animation-name: pokemon-uppercut-sprite;
-  animation-timing-function: steps(5);
   animation-fill-mode: forwards;
+}
+
+.pokemon-sprite--mullin.play-uppercut {
+  animation-name: pokemon-mullin-jump;
 }
 
 @keyframes pokemon-uppercut-sprite {
   from {
-    background-position: 0% center;
+    background-position: 0% bottom;
   }
   to {
-    background-position: 100% center;
+    background-position: 100% bottom;
   }
 }
 
 .pokemon-sprite.play-lightsaber {
   animation-name: pokemon-lightsaber-sprite;
-  animation-timing-function: steps(5);
   animation-fill-mode: forwards;
+}
+
+@keyframes pokemon-mullin-jump {
+  0% {
+    background-position: 0% bottom;
+    transform: translateX(-50%) translateY(0);
+  }
+  16% {
+    background-position: 16.666% bottom;
+    transform: translateX(-50%) translateY(-2%);
+  }
+  33% {
+    background-position: 33.333% bottom;
+    transform: translateX(-50%) translateY(-12%);
+  }
+  50% {
+    background-position: 50% bottom;
+    transform: translateX(-50%) translateY(-4%);
+  }
+  66% {
+    background-position: 66.666% bottom;
+    transform: translateX(-50%) translateY(-16%);
+  }
+  83% {
+    background-position: 83.333% bottom;
+    transform: translateX(-50%) translateY(-6%);
+  }
+  100% {
+    background-position: 100% bottom;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 @keyframes pokemon-lightsaber-sprite {
   0% {
-    background-position: 0% center;
+    background-position: 0% bottom;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 6px rgba(56, 189, 248, 0.25));
   }
+  20% {
+    background-position: 20% bottom;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 10px rgba(56, 189, 248, 0.45));
+  }
   40% {
-    background-position: 40% center;
+    background-position: 40% bottom;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.65));
   }
-  70% {
-    background-position: 70% center;
+  60% {
+    background-position: 60% bottom;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 18px rgba(96, 165, 250, 0.85));
   }
+  80% {
+    background-position: 80% bottom;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.55));
+  }
   100% {
-    background-position: 100% center;
+    background-position: 100% bottom;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
   }
 }

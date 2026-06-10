@@ -39,7 +39,7 @@ npm start              # http://localhost:3000
 
 - Конфиг: `POKEMONS` в `game.js` и `game-logic.js` (должны совпадать).
 - **Mullin** (`kirill`): апперкот, `play-uppercut`, 6 кадров.
-- **BITCOIN** (`bitcoin`): световой меч, `play-lightsaber`, 6 кадров.
+- **BITCOIN** (`bitcoin`): световой меч, `play-lightsaber`, 6 кадров (pdstyle poses 1–4, 6, 7).
 - Ферма: 4 слота, цены `[0, 100K, 1M, 10M]`.
 - Пассивный доход: `applyPokemonPunches()` по `punchIntervalMs`.
 
@@ -65,11 +65,9 @@ npm start              # http://localhost:3000
 
 ## Спрайты BITCOIN
 
-Источник: `assets/pokemon/bitcoin-funko-idle-raw.png` (или `bitcoin-sheet-raw.png`).
+Источник: `Pokemons/bitcoin-bts-funko/bitcoin-poses-raw.png` (pdstyle poses 1–4, 6, 7).
 
 ```bash
-python scripts/build-pokemon-idle-sheet.py
-# или только BITCOIN из сырого листа:
 python scripts/process-bitcoin-sprites.py
 ```
 

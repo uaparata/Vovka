@@ -7,7 +7,7 @@
 | Папка | Описание |
 |-------|----------|
 | `kirill-mulin-funko/` | Референсы и превью Mullin (в игре — `assets/pokemon/kirill-*.png`) |
-| `bitcoin-bts-funko/` | Референсы BITCOIN / B.T.S. (в игре — `assets/pokemon/bitcoin-*.png`) |
+| `bitcoin-bts-funko/` | Референсы BITCOIN / B.T.S. (pdstyle poses → `assets/pokemon/bitcoin-*.png`) |
 
 Открой `kirill-mulin-funko/index.html` в браузере, чтобы крутить модель Mullin.
-Спрайты BITCOIN генерируются скриптом `scripts/generate-bitcoin-sprites.py`.
+Спрайты BITCOIN собираются из pdstyle-поз: `python scripts/process-bitcoin-sprites.py`
