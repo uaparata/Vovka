@@ -23,7 +23,7 @@ npm start              # http://localhost:3000
 | `db.js` | PostgreSQL / JSON file |
 | `styles.css` | Стили, анимации Pokemons |
 | `assets/level-*.png` | Фото Вовы по уровням (1–17) |
-| `assets/pokemon/` | Спрайты Mullin, BITCOIN, Nikita (idle + sheet) |
+| `assets/pokemon/` | Спрайты Mullin, BITCOIN, Nikita, Sasha, Renato, Jackon (idle + sheet) |
 | `Pokemons/` | Референсы и превью персонажей |
 | `scripts/` | Python: сборка спрайтов из Funko-референсов |
 
@@ -43,7 +43,8 @@ npm start              # http://localhost:3000
 - **Nikita** (`nikita`): удар по экрану, `play-punch-break`, 7 кадров.
 - **Sasha** (`sasha`): сумочка, `play-handbag`, 7 кадров.
 - **Renato** (`renato`): жесты, `play-uppercut`, 7 кадров.
-- Ферма: 4 слота, цены `[0, 100K, 1M, 10M]`.
+- **Jackon** (`jackon`): DJI FPV очки + дрон, `play-fpv-drone`, 7 кадров.
+- Ферма: 4 слота, цены `[0, 100K, 1M, 10M]`. В бою может быть только Pokemon в слоте; остальные «в запасе» не дают доход.
 - Пассивный доход: `applyPokemonPunches()` по `punchIntervalMs`.
 
 ### Сохранения

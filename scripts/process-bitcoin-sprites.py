@@ -31,7 +31,7 @@ def load_idle_crop() -> Image.Image:
 def load_pose_crop(index: int) -> Image.Image | None:
     if not POSE_RAW.exists() or index == 0:
         return None
-    frame = strip_bg(crop_pose_row(Image.open(POSE_RAW).convert("RGBA"), index, FRAMES, pad_ratio=0.1))
+    frame = strip_bg(crop_pose_row(Image.open(POSE_RAW).convert("RGBA"), index, FRAMES, pad_ratio=0.18))
     x0, y0, x1, y1 = bbox(frame)
     if x1 <= x0 or y1 <= y0:
         return None

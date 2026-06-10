@@ -11,6 +11,7 @@
 | `nikita-funko/` | Nikita | `nikita-poses-raw.png` | `process-nikita-sprites.py` | `nikita-*.png` |
 | `sasha-funko/` | Sasha | `sasha-poses-raw.png` | `process-sasha-sprites.py` | `sasha-*.png` |
 | `renato-funko/` | Renato | `renato-poses-raw.png` | `process-renato-sprites.py` | `renato-*.png` |
+| `jackon-funko/` | Jackon | `jackon-poses-raw.png` (procedural) | `process-jackon-sprites.py` | `jackon-*.png` |
 
 Общая нормализация размера: `scripts/pokemon_sprite_common.py` (`CHAR_HEIGHT=300`, общая линия ног).
 

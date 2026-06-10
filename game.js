@@ -211,10 +211,29 @@ const POKEMONS = [
     weapon: 'fists',
     desc: 'Борода + thumbs up — зинкоины за каждый жест',
   },
+  {
+    id: 'jackon',
+    name: 'Jackon',
+    image: 'assets/pokemon/jackon-idle.png',
+    spriteSheet: 'assets/pokemon/jackon-sheet.png',
+    spriteFrames: 7,
+    animMs: 840,
+    animClass: 'play-fpv-drone',
+    fillsSlot: true,
+    price: 140_000,
+    upgradeBasePrice: 36_000,
+    upgradePriceAtMax: 105_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 460_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2900,
+    weapon: 'fists',
+    desc: 'DJI FPV очки + запуск дрона — зинкоины за каждый полёт',
+  },
 ];
 
-let assetVersionTag = '27';
-const POKEMON_WRAP_ANIM_CLASSES = ['is-bounce-anim', 'is-punch-anim', 'is-saber-anim'];
+let assetVersionTag = '28';
+const POKEMON_WRAP_ANIM_CLASSES = ['is-bounce-anim', 'is-punch-anim', 'is-saber-anim', 'is-fpv-anim'];
 
 function pokemonAssetUrl(path) {
   const sep = path.includes('?') ? '&' : '?';
@@ -349,18 +368,6 @@ function normalizePokemonDeployed(save) {
     seen.add(id);
     return id;
   });
-
-  const unlocked = getUnlockedSlotCount(save);
-  for (const pokemon of POKEMONS) {
-    if ((owned[pokemon.id] || 0) <= 0 || seen.has(pokemon.id)) continue;
-    for (let i = 0; i < unlocked; i += 1) {
-      if (!save.pokemonDeployed[i]) {
-        save.pokemonDeployed[i] = pokemon.id;
-        seen.add(pokemon.id);
-        break;
-      }
-    }
-  }
 }
 
 function isPokemonDeployed(pokemonId, save = state) {
@@ -1148,7 +1155,7 @@ function buildPokemonFarm() {
     el.innerHTML = `
       <div class="pokemon-slot-stage">
         <div class="pokemon-slot-floor"></div>
-        <div class="${wrapClass}" style="--sprite-frames: ${frames}">
+        <div class="${wrapClass} is-idle-pop" style="--sprite-frames: ${frames}">
           <div
             class="pokemon-sprite"
             data-pokemon-id="${pokemon.id}"
@@ -1237,6 +1244,9 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   if (animClass === 'play-uppercut') wrap?.classList.add('is-bounce-anim');
   else if (animClass === 'play-punch-break') wrap?.classList.add('is-punch-anim');
   else if (animClass === 'play-lightsaber' || animClass === 'play-handbag') wrap?.classList.add('is-saber-anim');
+  else if (animClass === 'play-fpv-drone') wrap?.classList.add('is-fpv-anim');
+
+  wrap?.classList.remove('is-idle-pop');
 
   const slot = sprite.closest('.pokemon-slot');
   if (slot) slot.classList.add('is-animating');
@@ -1244,6 +1254,7 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   const onEnd = () => {
     sprite.classList.remove('is-sprite-anim');
     wrap?.classList.remove(...POKEMON_WRAP_ANIM_CLASSES);
+    wrap?.classList.add('is-idle-pop');
     sprite.style.backgroundPosition = '0% bottom';
     if (wrap) wrap.style.transform = '';
     sprite.removeEventListener('animationend', onEnd);
@@ -1321,10 +1332,9 @@ function renderPokemonShop() {
       deployBtn.type = 'button';
       deployBtn.className = 'pokemon-deploy-btn' + (deployed ? ' active' : '');
       deployBtn.textContent = deployed ? 'Убрать' : 'В бой';
-      deployBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        togglePokemonDeploy(pokemon);
-      });
+      deployBtn.dataset.pokemonId = pokemon.id;
+      if (deployed) deployBtn.title = 'Убрать из слота фермы';
+      else if (!hasEmptyDeploySlot()) deployBtn.title = 'Нет свободных слотов';
       card.appendChild(deployBtn);
     }
 
@@ -2042,7 +2052,14 @@ function initShopPanels() {
   });
 
   $('#pokemon-shop-list')?.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.pokemon-deploy-btn')) return;
+    const deployBtn = e.target.closest('.pokemon-deploy-btn');
+    if (deployBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const pokemon = POKEMONS.find((p) => p.id === deployBtn.dataset.pokemonId);
+      if (pokemon) togglePokemonDeploy(pokemon);
+      return;
+    }
     const card = e.target.closest('.pokemon-shop-card.can-buy');
     if (!card) return;
     const pokemon = POKEMONS.find((p) => p.id === card.dataset.pokemonId);

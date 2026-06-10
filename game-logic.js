@@ -125,6 +125,25 @@ const POKEMONS = [
     weapon: 'fists',
     desc: 'Борода + thumbs up — зинкоины за каждый жест',
   },
+  {
+    id: 'jackon',
+    name: 'Jackon',
+    image: 'assets/pokemon/jackon-idle.png',
+    spriteSheet: 'assets/pokemon/jackon-sheet.png',
+    spriteFrames: 7,
+    animMs: 840,
+    animClass: 'play-fpv-drone',
+    fillsSlot: true,
+    price: 140_000,
+    upgradeBasePrice: 36_000,
+    upgradePriceAtMax: 105_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 460_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2900,
+    weapon: 'fists',
+    desc: 'DJI FPV очки + запуск дрона — зинкоины за каждый полёт',
+  },
 ];
 
 function getPokemonPerHour(pokemon, level) {
@@ -237,18 +256,6 @@ function normalizePokemonDeployed(save) {
     seen.add(id);
     return id;
   });
-
-  const unlocked = getUnlockedSlotCount(save);
-  for (const pokemon of POKEMONS) {
-    if ((owned[pokemon.id] || 0) <= 0 || seen.has(pokemon.id)) continue;
-    for (let i = 0; i < unlocked; i += 1) {
-      if (!save.pokemonDeployed[i]) {
-        save.pokemonDeployed[i] = pokemon.id;
-        seen.add(pokemon.id);
-        break;
-      }
-    }
-  }
 }
 
 function isPokemonDeployed(save, pokemonId) {

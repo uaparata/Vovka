@@ -8,7 +8,7 @@ FRAME_H = 900
 CHAR_HEIGHT = 300
 FEET_PAD = 8
 TOP_PAD = 14
-MAX_WIDTH_RATIO = 0.96
+MAX_WIDTH_RATIO = 0.98
 
 
 def frame_bounds(width: int, index: int, count: int, inset_ratio: float = 0.0):
