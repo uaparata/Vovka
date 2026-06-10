@@ -14,12 +14,19 @@ const POKEMONS = [
     name: 'Kirill Mulin',
     image: 'assets/pokemon-kirill.png',
     price: 10_000,
+    upgradeBasePrice: 7_500,
+    upgradePriceMult: 1.75,
     maxLevel: 20,
     perHourBase: 500,
     punchIntervalMs: 2500,
     weapon: 'fists',
   },
 ];
+
+function getPokemonUpgradePrice(pokemon, level) {
+  if (!pokemon || level <= 0 || level >= pokemon.maxLevel) return Infinity;
+  return Math.floor(pokemon.upgradeBasePrice * Math.pow(pokemon.upgradePriceMult, level - 1));
+}
 
 const MAX_PASSIVE_ELAPSED_SEC = 4 * 3600;
 const MAX_TAP_EARN_ESTIMATE = 500;
@@ -380,6 +387,25 @@ function applyTap(save) {
   return { ok: true, earned, stats };
 }
 
+function applyUpgradePokemon(save, pokemonId) {
+  const pokemon = POKEMONS.find((p) => p.id === pokemonId);
+  if (!pokemon) return { ok: false, reason: 'invalid_pokemon' };
+
+  if (!save.ownedPokemon) save.ownedPokemon = {};
+  const lvl = save.ownedPokemon[pokemonId] || 0;
+  if (lvl <= 0) return { ok: false, reason: 'not_owned' };
+  if (lvl >= pokemon.maxLevel) return { ok: false, reason: 'maxed' };
+
+  const price = getPokemonUpgradePrice(pokemon, lvl);
+  if (save.balance < price) return { ok: false, reason: 'no_money' };
+
+  save.balance -= price;
+  save.ownedPokemon[pokemonId] = lvl + 1;
+  syncMaxLevel(save);
+  save.lastSave = Date.now();
+  return { ok: true, price, level: lvl + 1 };
+}
+
 function applyBuyPokemon(save, pokemonId) {
   const pokemon = POKEMONS.find((p) => p.id === pokemonId);
   if (!pokemon) return { ok: false, reason: 'invalid_pokemon' };
@@ -428,6 +454,7 @@ module.exports = {
   calcStats,
   calcPokemonStats,
   getUpgradePrice,
+  getPokemonUpgradePrice,
   levelFromBalance,
   syncMaxLevel,
   isFreshResetSave,
@@ -443,5 +470,6 @@ module.exports = {
   applyTap,
   applyBuyUpgrade,
   applyBuyPokemon,
+  applyUpgradePokemon,
   countOwnedPokemon,
 };

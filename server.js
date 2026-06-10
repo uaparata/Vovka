@@ -26,6 +26,7 @@ const {
   applyTap,
   applyBuyUpgrade,
   applyBuyPokemon,
+  applyUpgradePokemon,
   mergeUpgradeLevelsSafely,
   reconcileSaves,
   syncMaxLevel,
@@ -441,6 +442,30 @@ async function start() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Buy failed' });
+    }
+  });
+
+  app.post('/api/upgrade-pokemon', requireAuth, async (req, res) => {
+    try {
+      const { pokemonId } = req.body;
+      if (!POKEMONS.some((p) => p.id === pokemonId)) {
+        return res.status(400).json({ error: 'invalid_pokemon' });
+      }
+
+      await withUserLock(req.user.id, async () => {
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        const result = applyUpgradePokemon(save, pokemonId);
+        if (!result.ok) {
+          res.status(400).json({ error: result.reason });
+          return;
+        }
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, price: result.price, level: result.level });
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Upgrade pokemon failed' });
     }
   });
 

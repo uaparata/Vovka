@@ -323,65 +323,114 @@ body {
   border-radius: 12px;
   border: 1px dashed var(--border);
   background: rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
   overflow: hidden;
-  min-height: 88px;
+  min-height: 108px;
 }
 
 .pokemon-slot.filled {
   border-style: solid;
   border-color: rgba(249, 115, 22, 0.35);
-  background: linear-gradient(180deg, rgba(249, 115, 22, 0.08), rgba(0, 0, 0, 0.25));
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.06), rgba(0, 0, 0, 0.35));
 }
 
 .pokemon-slot.empty .pokemon-slot-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1.4rem;
   color: var(--text-muted);
   opacity: 0.45;
-  margin: auto;
+}
+
+.pokemon-slot-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 22px;
+  overflow: hidden;
+  border-radius: 10px 10px 0 0;
 }
 
 .pokemon-slot-img-wrap {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 18px;
-  transform-origin: 50% 85%;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+.pokemon-slot-img-wrap.uppercut {
+  animation: pokemon-uppercut 0.5s cubic-bezier(0.22, 1.15, 0.36, 1);
 }
 
 .pokemon-slot-img {
-  width: 78%;
-  max-height: 82%;
-  object-fit: contain;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+  height: 100%;
+  width: auto;
+  min-width: 92%;
+  max-width: 130%;
+  object-fit: cover;
+  object-position: center bottom;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
   pointer-events: none;
+  user-select: none;
 }
 
-.pokemon-slot-img.punch {
-  animation: pokemon-punch 0.32s ease-out;
+@keyframes pokemon-uppercut {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  18% {
+    transform: translateY(-4px) rotate(-3deg) scale(0.98);
+  }
+  38% {
+    transform: translateY(-22px) rotate(6deg) scale(1.04);
+  }
+  55% {
+    transform: translateY(-26px) rotate(10deg) scale(1.06);
+  }
+  72% {
+    transform: translateY(-10px) rotate(4deg) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
 }
 
-@keyframes pokemon-punch {
-  0% { transform: translateX(0) scale(1); }
-  35% { transform: translateX(8px) scale(1.04) rotate(2deg); }
-  100% { transform: translateX(0) scale(1); }
+.pokemon-slot-level {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  font-size: 0.48rem;
+  font-weight: 900;
+  color: var(--gold);
+  line-height: 1.2;
 }
 
 .pokemon-slot-name {
-  position: relative;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2;
-  width: 100%;
-  padding: 4px 4px 5px;
+  padding: 5px 4px 6px;
   font-size: 0.52rem;
   font-weight: 800;
   text-align: center;
   color: var(--text);
-  background: linear-gradient(transparent, rgba(13, 17, 23, 0.92));
+  background: linear-gradient(transparent, rgba(13, 17, 23, 0.95));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -453,8 +502,13 @@ body {
   border-color: rgba(249, 115, 22, 0.4);
 }
 
-.pokemon-shop-card.owned {
-  opacity: 0.65;
+.pokemon-shop-card.owned:not(.can-buy) {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.pokemon-shop-card.maxed {
+  opacity: 0.55;
   cursor: default;
 }
 
@@ -463,10 +517,13 @@ body {
 }
 
 .pokemon-shop-thumb {
-  width: 52px;
-  height: 64px;
-  object-fit: contain;
+  width: 48px;
+  height: 72px;
+  object-fit: cover;
+  object-position: center bottom;
   flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
 }
 

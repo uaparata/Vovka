@@ -112,13 +112,17 @@ const POKEMONS = [
     name: 'Kirill Mulin',
     image: 'assets/pokemon-kirill.png',
     price: 10_000,
+    upgradeBasePrice: 7_500,
+    upgradePriceMult: 1.75,
     maxLevel: 20,
     perHourBase: 500,
     punchIntervalMs: 2500,
     weapon: 'fists',
-    desc: 'Бьёт кулаками — зинкоины за каждый удар',
+    desc: 'Апперкот + прыжок — зинкоины за каждый удар',
   },
 ];
+
+let pokemonFarmRenderKey = '';
 
 const defaultState = () => ({
   balance: 0,
@@ -658,6 +662,12 @@ function getUpgradePrice(upgrade) {
   return Math.floor(upgrade.basePrice * Math.pow(upgrade.priceMult, lvl));
 }
 
+function getPokemonUpgradePrice(pokemon) {
+  const lvl = state.ownedPokemon?.[pokemon.id] || 0;
+  if (lvl <= 0 || lvl >= pokemon.maxLevel) return Infinity;
+  return Math.floor(pokemon.upgradeBasePrice * Math.pow(pokemon.upgradePriceMult, lvl - 1));
+}
+
 function calcStats() {
   let perTap = 1;
   let maxEnergy = 320;
@@ -839,11 +849,15 @@ function render() {
   $('#stat-rank').textContent = `${photoLevel.level} — ${photoLevel.name}`;
 
   renderUpgrades();
-  renderPokemonFarm(stats);
+  renderPokemonFarm();
   renderPokemonShop();
 }
 
-function renderPokemonFarm(stats) {
+function getPokemonFarmRenderKey() {
+  return JSON.stringify(state.ownedPokemon || {});
+}
+
+function buildPokemonFarm() {
   const farm = $('#pokemon-farm');
   if (!farm) return;
 
@@ -873,9 +887,12 @@ function renderPokemonFarm(stats) {
     const { pokemon, level } = slot;
     const perHour = pokemon.perHourBase * level;
     el.innerHTML = `
-      <div class="pokemon-slot-img-wrap" data-pokemon-id="${pokemon.id}">
-        <img class="pokemon-slot-img" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
+      <div class="pokemon-slot-stage">
+        <div class="pokemon-slot-img-wrap" data-pokemon-id="${pokemon.id}">
+          <img class="pokemon-slot-img" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
+        </div>
       </div>
+      <span class="pokemon-slot-level">ур. ${level}</span>
       <div class="pokemon-slot-name">${pokemon.name}</div>
     `;
     el.title = `${pokemon.name} · ур. ${level} · +${formatNum(perHour)}/час`;
@@ -883,22 +900,55 @@ function renderPokemonFarm(stats) {
   });
 }
 
-function triggerPokemonPunchVisual(pokemonId, earned) {
+function updatePokemonFarmLevels() {
+  const owned = state.ownedPokemon || {};
+  for (const pokemon of POKEMONS) {
+    const level = owned[pokemon.id] || 0;
+    if (level <= 0) continue;
+    const wrap = document.querySelector(`.pokemon-slot-img-wrap[data-pokemon-id="${pokemon.id}"]`);
+    const slot = wrap?.closest('.pokemon-slot');
+    if (!slot) continue;
+    const perHour = pokemon.perHourBase * level;
+    const lvlEl = slot.querySelector('.pokemon-slot-level');
+    if (lvlEl) lvlEl.textContent = `ур. ${level}`;
+    slot.title = `${pokemon.name} · ур. ${level} · +${formatNum(perHour)}/час`;
+  }
+}
+
+function renderPokemonFarm() {
+  const farm = $('#pokemon-farm');
+  if (!farm) return;
+
+  const key = getPokemonFarmRenderKey();
+  if (key !== pokemonFarmRenderKey) {
+    pokemonFarmRenderKey = key;
+    buildPokemonFarm();
+  } else {
+    updatePokemonFarmLevels();
+  }
+}
+
+function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
   const wrap = document.querySelector(`.pokemon-slot-img-wrap[data-pokemon-id="${pokemonId}"]`);
   if (!wrap) return;
-  const img = wrap.querySelector('.pokemon-slot-img');
-  if (img) {
-    img.classList.remove('punch');
-    void img.offsetWidth;
-    img.classList.add('punch');
-  }
+  wrap.classList.remove('uppercut');
+  void wrap.offsetWidth;
+  wrap.classList.add('uppercut');
+
   const slot = wrap.closest('.pokemon-slot');
-  if (!slot || earned <= 0) return;
+  if (!slot || !showCoin || earned <= 0) return;
   const coin = document.createElement('span');
   coin.className = 'pokemon-slot-coin';
   coin.textContent = `+${formatNum(earned)}`;
   slot.appendChild(coin);
   setTimeout(() => coin.remove(), 750);
+}
+
+function triggerAllPokemonUppercutOnTap() {
+  const { active } = calcPokemonStats();
+  for (const p of active) {
+    triggerPokemonUppercut(p.id, 0, false);
+  }
 }
 
 function renderPokemonShop() {
@@ -912,33 +962,82 @@ function renderPokemonShop() {
   for (const pokemon of POKEMONS) {
     const level = owned[pokemon.id] || 0;
     const isOwned = level > 0;
+    const maxed = isOwned && level >= pokemon.maxLevel;
     const canBuy = !isOwned && !slotsFull && state.balance >= pokemon.price;
+    const upPrice = getPokemonUpgradePrice(pokemon);
+    const canUpgrade = isOwned && !maxed && state.balance >= upPrice;
+    const perHour = isOwned ? pokemon.perHourBase * level : pokemon.perHourBase;
 
     const card = document.createElement('div');
     card.className =
-      'pokemon-shop-card' + (canBuy ? ' can-buy' : '') + (isOwned ? ' owned' : '');
+      'pokemon-shop-card' +
+      (canBuy || canUpgrade ? ' can-buy' : '') +
+      (isOwned ? ' owned' : '') +
+      (maxed ? ' maxed' : '');
     card.innerHTML = `
       <img class="pokemon-shop-thumb" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
       <div class="pokemon-shop-info">
         <div class="pokemon-shop-name">${pokemon.name}</div>
         <div class="pokemon-shop-desc">${pokemon.desc}</div>
-        <div class="pokemon-shop-meta">+${formatNum(pokemon.perHourBase)}/час · кулаки</div>
+        <div class="pokemon-shop-meta">
+          ${
+            isOwned
+              ? `Ур. ${level}${maxed ? ' (макс.)' : ''} · +${formatNum(perHour)}/час`
+              : `+${formatNum(pokemon.perHourBase)}/час · кулаки`
+          }
+        </div>
       </div>
       <div class="pokemon-shop-price">
         ${
-          isOwned
+          maxed
             ? '<span class="price-value">✓</span>'
-            : `<div class="price-value">💪 ${formatNum(pokemon.price)}</div><div class="price-label">купить</div>`
+            : isOwned
+              ? `<div class="price-value">💪 ${formatNum(upPrice)}</div><div class="price-label">качнуть</div>`
+              : `<div class="price-value">💪 ${formatNum(pokemon.price)}</div><div class="price-label">купить</div>`
         }
       </div>
     `;
 
-    if (!isOwned && !slotsFull) {
+    if (canBuy) {
       card.addEventListener('click', () => buyPokemon(pokemon));
+    } else if (canUpgrade) {
+      card.addEventListener('click', () => upgradePokemon(pokemon));
     }
 
     list.appendChild(card);
   }
+}
+
+async function upgradePokemon(pokemon) {
+  const lvl = state.ownedPokemon?.[pokemon.id] || 0;
+  if (lvl <= 0 || lvl >= pokemon.maxLevel) return;
+  const price = getPokemonUpgradePrice(pokemon);
+  if (state.balance < price) return;
+
+  if (currentUser) {
+    const res = await fetch('/api/upgrade-pokemon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ pokemonId: pokemon.id }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    applySaveData(data.save);
+    pokemonFarmRenderKey = '';
+    triggerPokemonUppercut(pokemon.id, 0, false);
+    saveState();
+    render();
+    refreshLeaderboardIfActive();
+    return;
+  }
+
+  state.balance -= price;
+  state.ownedPokemon[pokemon.id] = lvl + 1;
+  pokemonFarmRenderKey = '';
+  triggerPokemonUppercut(pokemon.id, 0, false);
+  saveState();
+  render();
 }
 
 async function buyPokemon(pokemon) {
@@ -956,6 +1055,7 @@ async function buyPokemon(pokemon) {
     if (!res.ok) return;
     const data = await res.json();
     applySaveData(data.save);
+    pokemonFarmRenderKey = '';
     saveState();
     render();
     refreshLeaderboardIfActive();
@@ -965,6 +1065,7 @@ async function buyPokemon(pokemon) {
   state.balance -= pokemon.price;
   if (!state.ownedPokemon) state.ownedPokemon = {};
   state.ownedPokemon[pokemon.id] = 1;
+  pokemonFarmRenderKey = '';
   if (!state.pokemonMeta) state.pokemonMeta = {};
   state.pokemonMeta[`lastPunch_${pokemon.id}`] = Date.now();
   saveState();
@@ -1049,6 +1150,8 @@ function playTapAnim(e, earned) {
   img.classList.remove('tap-anim');
   void img.offsetWidth;
   img.classList.add('tap-anim');
+
+  triggerAllPokemonUppercutOnTap();
 
   const balanceEl = $('#balance');
   balanceEl.classList.remove('bump');
@@ -1229,7 +1332,7 @@ function initPokemonVisualLoop() {
       const lastVisual = pokemonVisualTimers[visualKey] || 0;
       if (now - lastVisual < def.punchIntervalMs) continue;
       pokemonVisualTimers[visualKey] = now;
-      triggerPokemonPunchVisual(p.id, estimatePokemonPunchCoins(def, p.level));
+      triggerPokemonUppercut(p.id, estimatePokemonPunchCoins(def, p.level));
     }
   }, 400);
 }
@@ -1671,12 +1774,12 @@ async function boot() {
           applySaveData(save);
           if (Array.isArray(punchEvents)) {
             for (const ev of punchEvents) {
-              triggerPokemonPunchVisual(ev.id, ev.earned);
+              triggerPokemonUppercut(ev.id, ev.earned);
             }
           } else if (save.balance > prevBalance) {
             const stats = calcStats();
             for (const p of stats.pokemonActive || []) {
-              triggerPokemonPunchVisual(p.id, 0);
+              triggerPokemonUppercut(p.id, 0, false);
             }
           }
           render();
