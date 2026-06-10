@@ -28,6 +28,7 @@ const {
   applyBuyPokemon,
   applyBuyPokemonSlot,
   applyUpgradePokemon,
+  applySetPokemonDeploy,
   mergeUpgradeLevelsSafely,
   reconcileSaves,
   syncMaxLevel,
@@ -515,6 +516,33 @@ async function start() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Buy pokemon failed' });
+    }
+  });
+
+  app.post('/api/pokemon-deploy', requireAuth, async (req, res) => {
+    try {
+      const { pokemonId, deploy } = req.body;
+      if (!POKEMONS.some((p) => p.id === pokemonId)) {
+        return res.status(400).json({ error: 'invalid_pokemon' });
+      }
+      if (typeof deploy !== 'boolean') {
+        return res.status(400).json({ error: 'invalid_deploy' });
+      }
+
+      await withUserLock(req.user.id, async () => {
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        const result = applySetPokemonDeploy(save, pokemonId, deploy);
+        if (!result.ok) {
+          res.status(400).json({ error: result.reason });
+          return;
+        }
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, deployed: result.deployed });
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Pokemon deploy failed' });
     }
   });
 

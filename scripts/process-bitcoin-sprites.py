@@ -1,4 +1,4 @@
-"""Crop, scale, and rebuild Mullin jump sprites — upright jump only, no spin."""
+"""Process BITCOIN Funko sprite sheet into game-ready frames."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,16 +8,16 @@ from PIL import Image
 from sprite_seam_fix import fix_center_seam
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_PATH = ROOT / "assets" / "pokemon" / "kirill-sheet-raw.png"
-SHEET_PATH = ROOT / "assets" / "pokemon" / "kirill-sheet.png"
-IDLE_PATH = ROOT / "assets" / "pokemon" / "kirill-idle.png"
+RAW_PATH = ROOT / "assets" / "pokemon" / "bitcoin-sheet-raw.png"
+SHEET_PATH = ROOT / "assets" / "pokemon" / "bitcoin-sheet.png"
+IDLE_PATH = ROOT / "assets" / "pokemon" / "bitcoin-idle.png"
 FRAMES = 6
-JUMP_OUT_FRAMES = {2, 4}
+JUMP_FRAMES = {2, 4}
 TARGET_FRAME_H = 900
 TARGET_FRAME_W = 320
 
 
-def frame_bounds(width: int, index: int, count: int = FRAMES):
+def frame_bounds(width: int, index: int, count: int):
     step = width / count
     x0 = int(round(index * step))
     x1 = int(round((index + 1) * step))
@@ -47,12 +47,12 @@ def bbox(frame: Image.Image):
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def strip_stand_and_rod(frame: Image.Image) -> Image.Image:
+def strip_bg(frame: Image.Image) -> Image.Image:
     out = frame.copy()
     w, h = out.size
     arr = out.load()
     cx = w * 0.5
-    base_y = h * 0.84
+    base_y = h * 0.86
     rx = w * 0.32
     ry = h * 0.11
 
@@ -66,33 +66,31 @@ def strip_stand_and_rod(frame: Image.Image) -> Image.Image:
                 continue
             nx = (x - cx) / rx
             ny = (y - base_y) / ry
-            if nx * nx + ny * ny <= 1.0 and r < 40 and g < 40 and b < 45:
+            if nx * nx + ny * ny <= 1.0 and r < 45 and g < 45 and b < 50:
                 arr[x, y] = (0, 0, 0, 0)
     return out
 
 
-def process_frame(frame: Image.Image, out_index: int) -> Image.Image:
+def process_frame(frame: Image.Image, index: int) -> Image.Image:
     frame = fix_center_seam(frame)
-    frame = strip_stand_and_rod(frame)
+    frame = strip_bg(frame)
     x0, y0, x1, y1 = bbox(frame)
     cropped = frame.crop((x0, y0, x1 + 1, y1 + 1))
 
     canvas = Image.new("RGBA", (TARGET_FRAME_W, TARGET_FRAME_H), (0, 0, 0, 0))
     scale = min(
-        (TARGET_FRAME_W * 0.99) / cropped.width,
-        (TARGET_FRAME_H * 0.97) / cropped.height,
+        (TARGET_FRAME_W * 0.98) / cropped.width,
+        (TARGET_FRAME_H * 0.96) / cropped.height,
     )
     nw = max(1, int(cropped.width * scale))
     nh = max(1, int(cropped.height * scale))
     resized = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
 
     x = (TARGET_FRAME_W - nw) // 2
-    if out_index in JUMP_OUT_FRAMES:
-        y = max(0, int((TARGET_FRAME_H - nh) * 0.02))
-    elif out_index == 1 or out_index == 5:
-        y = TARGET_FRAME_H - nh - 6
+    if index in JUMP_FRAMES:
+        y = max(0, int((TARGET_FRAME_H - nh) * 0.03))
     else:
-        y = TARGET_FRAME_H - nh - 1
+        y = TARGET_FRAME_H - nh - 2
 
     canvas.paste(resized, (x, y), resized)
     return canvas

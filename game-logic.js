@@ -26,8 +26,8 @@ const UPGRADES = [
   { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl * 0.1 }) },
 ];
 
-const MAX_POKEMON_SLOTS = 6;
-const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000, 50_000_000, 250_000_000];
+const MAX_POKEMON_SLOTS = 4;
+const POKEMON_SLOT_PRICES = [0, 100_000, 1_000_000, 10_000_000];
 
 const POKEMONS = [
   {
@@ -57,7 +57,7 @@ const POKEMONS = [
     spriteFrames: 6,
     animMs: 620,
     animClass: 'play-lightsaber',
-    fillsSlot: false,
+    fillsSlot: true,
     price: 50_000,
     upgradeBasePrice: 35_000,
     upgradePriceAtMax: 80_000_000_000,
@@ -120,6 +120,10 @@ const PHOTO_LEVELS = [
   { level: 17, min: 10_000_000_000_000, max: null },
 ];
 
+function defaultPokemonDeployed() {
+  return [null, null, null, null];
+}
+
 function defaultSave() {
   return {
     balance: 0,
@@ -130,6 +134,7 @@ function defaultSave() {
     peakBalance: 0,
     upgradeLevels: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
     ownedPokemon: {},
+    pokemonDeployed: defaultPokemonDeployed(),
     pokemonMeta: {},
     pokemonFarmBuffer: {},
     pokemonSlotsUnlocked: 1,
@@ -153,15 +158,94 @@ function getPokemonSlotPrice(slotIndex) {
 }
 
 function normalizePokemonSlots(save) {
-  const owned = countOwnedPokemon(save.ownedPokemon);
   const unlocked = getUnlockedSlotCount(save);
-  if (owned > unlocked) {
-    save.pokemonSlotsUnlocked = Math.min(MAX_POKEMON_SLOTS, owned);
+  if (unlocked > MAX_POKEMON_SLOTS) {
+    save.pokemonSlotsUnlocked = MAX_POKEMON_SLOTS;
   }
+}
+
+function normalizePokemonDeployed(save) {
+  if (!Array.isArray(save.pokemonDeployed)) {
+    save.pokemonDeployed = defaultPokemonDeployed();
+  }
+  while (save.pokemonDeployed.length < MAX_POKEMON_SLOTS) {
+    save.pokemonDeployed.push(null);
+  }
+  save.pokemonDeployed = save.pokemonDeployed.slice(0, MAX_POKEMON_SLOTS);
+
+  const owned = save.ownedPokemon || {};
+  const seen = new Set();
+  save.pokemonDeployed = save.pokemonDeployed.map((id) => {
+    if (!id || (owned[id] || 0) <= 0 || seen.has(id)) return null;
+    seen.add(id);
+    return id;
+  });
+
+  const unlocked = getUnlockedSlotCount(save);
+  for (const pokemon of POKEMONS) {
+    if ((owned[pokemon.id] || 0) <= 0 || seen.has(pokemon.id)) continue;
+    for (let i = 0; i < unlocked; i += 1) {
+      if (!save.pokemonDeployed[i]) {
+        save.pokemonDeployed[i] = pokemon.id;
+        seen.add(pokemon.id);
+        break;
+      }
+    }
+  }
+}
+
+function isPokemonDeployed(save, pokemonId) {
+  return (save.pokemonDeployed || []).includes(pokemonId);
+}
+
+function countDeployedPokemon(save) {
+  const owned = save.ownedPokemon || {};
+  const unlocked = getUnlockedSlotCount(save);
+  return (save.pokemonDeployed || [])
+    .slice(0, unlocked)
+    .filter((id) => id && (owned[id] || 0) > 0).length;
+}
+
+function findDeploySlot(save, pokemonId) {
+  const unlocked = getUnlockedSlotCount(save);
+  return (save.pokemonDeployed || []).slice(0, unlocked).indexOf(pokemonId);
+}
+
+function applySetPokemonDeploy(save, pokemonId, deploy) {
+  const pokemon = POKEMONS.find((p) => p.id === pokemonId);
+  if (!pokemon) return { ok: false, reason: 'invalid_pokemon' };
+
+  const owned = save.ownedPokemon || {};
+  if ((owned[pokemonId] || 0) <= 0) return { ok: false, reason: 'not_owned' };
+
+  if (!save.pokemonDeployed) save.pokemonDeployed = defaultPokemonDeployed();
+  normalizePokemonDeployed(save);
+
+  const slot = findDeploySlot(save, pokemonId);
+  if (deploy) {
+    if (slot >= 0) return { ok: true, deployed: true, slot };
+    const unlocked = getUnlockedSlotCount(save);
+    const free = save.pokemonDeployed.slice(0, unlocked).findIndex((id) => !id);
+    if (free < 0) return { ok: false, reason: 'farm_full' };
+    save.pokemonDeployed[free] = pokemonId;
+    if (!save.pokemonMeta) save.pokemonMeta = {};
+    save.pokemonMeta[`lastPunch_${pokemonId}`] = Date.now();
+    save.lastSave = Date.now();
+    return { ok: true, deployed: true, slot: free };
+  }
+
+  if (slot < 0) return { ok: true, deployed: false };
+  save.pokemonDeployed[slot] = null;
+  save.lastSave = Date.now();
+  return { ok: true, deployed: false, slot };
 }
 
 function calcPokemonStats(save) {
   const owned = save.ownedPokemon || {};
+  normalizePokemonDeployed(save);
+  const deployed = new Set(
+    (save.pokemonDeployed || []).filter((id) => id && (owned[id] || 0) > 0)
+  );
   let perHour = 0;
   let count = 0;
   const active = [];
@@ -169,6 +253,7 @@ function calcPokemonStats(save) {
   for (const pokemon of POKEMONS) {
     const lvl = owned[pokemon.id] || 0;
     if (lvl <= 0) continue;
+    if (!deployed.has(pokemon.id)) continue;
     count += 1;
     const ph = getPokemonPerHour(pokemon, lvl);
     perHour += ph;
@@ -300,6 +385,23 @@ function mergeUpgradeLevelsSafely(serverSave, incomingLevels) {
   return result;
 }
 
+function mergePokemonDeployed(...lists) {
+  const result = defaultPokemonDeployed();
+  const seen = new Set();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (let i = 0; i < MAX_POKEMON_SLOTS; i += 1) {
+      const id = list[i];
+      if (!id || seen.has(id)) continue;
+      const free = result.findIndex((slot) => !slot);
+      if (free < 0) break;
+      result[free] = id;
+      seen.add(id);
+    }
+  }
+  return result;
+}
+
 function mergeUpgradeLevels(...levelObjs) {
   const result = Object.fromEntries(UPGRADES.map((u) => [u.id, 0]));
   for (const obj of levelObjs) {
@@ -336,6 +438,7 @@ function mergeSaves(...saves) {
     ),
     upgradeLevels: mergeUpgradeLevels(...valid.map((s) => s.upgradeLevels)),
     ownedPokemon: mergeOwnedPokemon(...valid.map((s) => s.ownedPokemon)),
+    pokemonDeployed: mergePokemonDeployed(...valid.map((s) => s.pokemonDeployed)),
     pokemonMeta: valid.reduce((a, b) => ({ ...a, ...(b.pokemonMeta || {}) }), {}),
     pokemonFarmBuffer: valid.reduce((a, b) => ({ ...a, ...(b.pokemonFarmBuffer || {}) }), {}),
     pokemonSlotsUnlocked: Math.max(...valid.map((s) => getUnlockedSlotCount(s))),
@@ -343,6 +446,7 @@ function mergeSaves(...saves) {
     lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
   };
+  normalizePokemonDeployed(merged);
   syncMaxLevel(merged);
   return merged;
 }
@@ -387,6 +491,7 @@ function reconcileSaves(server, client) {
     energy: Math.max(srv.energy || 0, client.energy || 0),
     upgradeLevels: client.upgradeLevels,
     ownedPokemon: mergeOwnedPokemon(srv.ownedPokemon, client.ownedPokemon),
+    pokemonDeployed: mergePokemonDeployed(srv.pokemonDeployed, client.pokemonDeployed),
     pokemonMeta: { ...(srv.pokemonMeta || {}), ...(client.pokemonMeta || {}) },
     pokemonFarmBuffer: { ...(srv.pokemonFarmBuffer || {}), ...(client.pokemonFarmBuffer || {}) },
     pokemonSlotsUnlocked: Math.max(getUnlockedSlotCount(srv), getUnlockedSlotCount(client)),
@@ -501,13 +606,13 @@ function applyBuyPokemon(save, pokemonId) {
   if ((save.ownedPokemon[pokemonId] || 0) > 0) {
     return { ok: false, reason: 'already_owned' };
   }
-  if (countOwnedPokemon(save.ownedPokemon) >= getUnlockedSlotCount(save)) {
-    return { ok: false, reason: 'slots_full' };
-  }
   if (save.balance < pokemon.price) return { ok: false, reason: 'no_money' };
 
   save.balance -= pokemon.price;
   save.ownedPokemon[pokemonId] = 1;
+  if (!save.pokemonDeployed) save.pokemonDeployed = defaultPokemonDeployed();
+  normalizePokemonDeployed(save);
+  applySetPokemonDeploy(save, pokemonId, true);
   if (!save.pokemonMeta) save.pokemonMeta = {};
   save.pokemonMeta[`lastPunch_${pokemonId}`] = Date.now();
   syncMaxLevel(save);
@@ -582,8 +687,13 @@ module.exports = {
   applyBuyPokemon,
   applyBuyPokemonSlot,
   applyUpgradePokemon,
+  applySetPokemonDeploy,
   countOwnedPokemon,
+  countDeployedPokemon,
   getUnlockedSlotCount,
   getPokemonSlotPrice,
   normalizePokemonSlots,
+  normalizePokemonDeployed,
+  isPokemonDeployed,
+  defaultPokemonDeployed,
 };

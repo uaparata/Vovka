@@ -333,7 +333,7 @@ body {
 
 .pokemon-farm {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
@@ -463,13 +463,13 @@ body {
 }
 
 .pokemon-sprite--fills-slot {
-  height: 118%;
-  max-width: 118%;
-  bottom: -4px;
+  height: 148%;
+  max-width: 148%;
+  bottom: 0;
+  transform: translateX(-50%) translateY(6%);
 }
 
 .pokemon-sprite--lightsaber {
-  height: 96%;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
 }
 
@@ -495,23 +495,27 @@ body {
 @keyframes pokemon-uppercut-sprite-full {
   0% {
     background-position: 0% center;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(6%);
   }
-  35% {
+  20% {
+    background-position: 20% center;
+    transform: translateX(-50%) translateY(8%);
+  }
+  40% {
     background-position: 40% center;
-    transform: translateX(-50%) translateY(-6%);
+    transform: translateX(-50%) translateY(-8%);
   }
-  55% {
+  60% {
     background-position: 60% center;
-    transform: translateX(-50%) translateY(-14%);
+    transform: translateX(-50%) translateY(4%);
   }
-  75% {
+  80% {
     background-position: 80% center;
-    transform: translateX(-50%) translateY(-10%);
+    transform: translateX(-50%) translateY(-16%);
   }
   100% {
     background-position: 100% center;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(6%);
   }
 }
 
@@ -519,6 +523,10 @@ body {
   animation-name: pokemon-lightsaber-sprite;
   animation-timing-function: steps(5);
   animation-fill-mode: forwards;
+}
+
+.pokemon-sprite--fills-slot.play-lightsaber {
+  animation-name: pokemon-lightsaber-sprite-full;
 }
 
 @keyframes pokemon-lightsaber-sprite {
@@ -537,6 +545,33 @@ body {
   100% {
     background-position: 100% center;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
+  }
+}
+
+@keyframes pokemon-lightsaber-sprite-full {
+  0% {
+    background-position: 0% center;
+    transform: translateX(-50%) translateY(6%);
+  }
+  20% {
+    background-position: 20% center;
+    transform: translateX(-50%) translateY(8%);
+  }
+  40% {
+    background-position: 40% center;
+    transform: translateX(-50%) translateY(-6%);
+  }
+  60% {
+    background-position: 60% center;
+    transform: translateX(-50%) translateY(4%);
+  }
+  80% {
+    background-position: 80% center;
+    transform: translateX(-50%) translateY(-14%);
+  }
+  100% {
+    background-position: 100% center;
+    transform: translateX(-50%) translateY(6%);
   }
 }
 
@@ -669,6 +704,25 @@ body {
   color: var(--accent);
   font-weight: 700;
   margin-top: 3px;
+}
+
+.pokemon-deploy-btn {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--gold);
+  font-size: 0.58rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pokemon-deploy-btn.active {
+  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
 }
 
 .pokemon-shop-price {
