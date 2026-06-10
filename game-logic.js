@@ -12,7 +12,10 @@ const POKEMONS = [
   {
     id: 'kirill',
     name: 'Kirill Mulin',
-    image: 'assets/pokemon-kirill.png',
+    image: 'assets/pokemon/kirill-idle.png',
+    spriteSheet: 'assets/pokemon/kirill-sheet.png',
+    spriteFrames: 6,
+    animMs: 540,
     price: 10_000,
     upgradeBasePrice: 7_500,
     upgradePriceMult: 1.75,

@@ -110,7 +110,10 @@ const POKEMONS = [
   {
     id: 'kirill',
     name: 'Kirill Mulin',
-    image: 'assets/pokemon-kirill.png',
+    image: 'assets/pokemon/kirill-idle.png',
+    spriteSheet: 'assets/pokemon/kirill-sheet.png',
+    spriteFrames: 6,
+    animMs: 540,
     price: 10_000,
     upgradeBasePrice: 7_500,
     upgradePriceMult: 1.75,
@@ -825,17 +828,16 @@ function render() {
 
   const progressPct = photoLevel.progress * 100;
   $('#level-progress-fill').style.width = progressPct + '%';
-  $('#level-progress-title').textContent = `Уровень ${photoLevel.level}`;
+  $('#level-progress-title').textContent = `Уровень ${photoLevel.level} — ${photoLevel.name}`;
   $('#level-progress-meta').textContent = photoLevel.isMax
-    ? `${photoLevel.name} 👑`
-    : `→ уровень ${photoLevel.nextLevel}`;
+    ? 'Максимум 👑'
+    : `до ур. ${photoLevel.nextLevel}`;
 
   if (photoLevel.isMax) {
-    $('#level-progress-bar-label').textContent = 'Максимальный уровень 👑';
+    $('#level-progress-bar-label').textContent = `${formatCoinsFull(state.balance)} 💪 · макс. уровень`;
   } else {
-    const pct = Math.floor(photoLevel.progress * 100);
     $('#level-progress-bar-label').textContent =
-      `${formatCoinsFull(photoLevel.nextThreshold)} 💪 · ${pct}%`;
+      `${formatCoinsFull(state.balance)} / ${formatCoinsFull(photoLevel.nextThreshold)} 💪`;
   }
 
   const energyPct = (state.energy / stats.maxEnergy) * 100;
@@ -886,11 +888,19 @@ function buildPokemonFarm() {
 
     const { pokemon, level } = slot;
     const perHour = pokemon.perHourBase * level;
+    const sheet = pokemon.spriteSheet || pokemon.image;
+    const frames = pokemon.spriteFrames || 6;
     el.innerHTML = `
       <div class="pokemon-slot-stage">
-        <div class="pokemon-slot-img-wrap" data-pokemon-id="${pokemon.id}">
-          <img class="pokemon-slot-img" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
-        </div>
+        <div class="pokemon-slot-floor"></div>
+        <div
+          class="pokemon-sprite"
+          data-pokemon-id="${pokemon.id}"
+          data-frames="${frames}"
+          style="background-image: url('${sheet}')"
+          role="img"
+          aria-label="${pokemon.name}"
+        ></div>
       </div>
       <span class="pokemon-slot-level">ур. ${level}</span>
       <div class="pokemon-slot-name">${pokemon.name}</div>
@@ -905,8 +915,8 @@ function updatePokemonFarmLevels() {
   for (const pokemon of POKEMONS) {
     const level = owned[pokemon.id] || 0;
     if (level <= 0) continue;
-    const wrap = document.querySelector(`.pokemon-slot-img-wrap[data-pokemon-id="${pokemon.id}"]`);
-    const slot = wrap?.closest('.pokemon-slot');
+    const sprite = document.querySelector(`.pokemon-sprite[data-pokemon-id="${pokemon.id}"]`);
+    const slot = sprite?.closest('.pokemon-slot');
     if (!slot) continue;
     const perHour = pokemon.perHourBase * level;
     const lvlEl = slot.querySelector('.pokemon-slot-level');
@@ -929,13 +939,24 @@ function renderPokemonFarm() {
 }
 
 function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
-  const wrap = document.querySelector(`.pokemon-slot-img-wrap[data-pokemon-id="${pokemonId}"]`);
-  if (!wrap) return;
-  wrap.classList.remove('uppercut');
-  void wrap.offsetWidth;
-  wrap.classList.add('uppercut');
+  const sprite = document.querySelector(`.pokemon-sprite[data-pokemon-id="${pokemonId}"]`);
+  if (!sprite) return;
 
-  const slot = wrap.closest('.pokemon-slot');
+  const def = POKEMONS.find((p) => p.id === pokemonId);
+  const animMs = def?.animMs || 540;
+  sprite.style.animationDuration = `${animMs}ms`;
+  sprite.classList.remove('play-uppercut');
+  void sprite.offsetWidth;
+  sprite.classList.add('play-uppercut');
+
+  const onEnd = () => {
+    sprite.classList.remove('play-uppercut');
+    sprite.style.backgroundPosition = '0% center';
+    sprite.removeEventListener('animationend', onEnd);
+  };
+  sprite.addEventListener('animationend', onEnd);
+
+  const slot = sprite.closest('.pokemon-slot');
   if (!slot || !showCoin || earned <= 0) return;
   const coin = document.createElement('span');
   coin.className = 'pokemon-slot-coin';
