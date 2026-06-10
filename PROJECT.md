@@ -41,6 +41,8 @@ npm start              # http://localhost:3000
 - **Mullin** (`kirill`): апперкот, `play-uppercut`, 6 кадров.
 - **BITCOIN** (`bitcoin`): световой меч, `play-lightsaber`, 6 кадров (pdstyle poses 1–4, 6, 7).
 - **Nikita** (`nikita`): удар по экрану, `play-punch-break`, 7 кадров.
+- **Sasha** (`sasha`): сумочка, `play-handbag`, 7 кадров.
+- **Renato** (`renato`): жесты, `play-uppercut`, 7 кадров.
 - Ферма: 4 слота, цены `[0, 100K, 1M, 10M]`.
 - Пассивный доход: `applyPokemonPunches()` по `punchIntervalMs`.
 

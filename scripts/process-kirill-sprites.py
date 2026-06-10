@@ -1,118 +1,42 @@
-"""Crop, scale, and rebuild Mullin jump sprites — upright jump only, no spin."""
+"""Rebuild Mullin from clean Funko preview (raw sheet has AI center seam)."""
 from __future__ import annotations
 
 from pathlib import Path
 
 from PIL import Image
 
-from sprite_seam_fix import fix_center_seam
+from pokemon_sprite_common import (
+    bbox,
+    build_sheet,
+    place_on_canvas,
+    strip_bg,
+    strip_stand_rod,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_PATH = ROOT / "assets" / "pokemon" / "kirill-sheet-raw.png"
+PREVIEW_PATH = ROOT / "Pokemons" / "kirill-mulin-funko" / "kirill-mulin-funko-preview.png"
 SHEET_PATH = ROOT / "assets" / "pokemon" / "kirill-sheet.png"
 IDLE_PATH = ROOT / "assets" / "pokemon" / "kirill-idle.png"
 FRAMES = 6
-JUMP_OUT_FRAMES = {2, 4}
-TARGET_FRAME_H = 900
-TARGET_FRAME_W = 320
+JUMP_LIFT = {1: -16, 2: -80, 3: -20, 4: -104, 5: -16}
 
 
-def frame_bounds(width: int, index: int, count: int = FRAMES):
-    step = width / count
-    x0 = int(round(index * step))
-    x1 = int(round((index + 1) * step))
-    inset = max(2, int(step * 0.015))
-    if index > 0:
-        x0 += inset
-    if index < count - 1:
-        x1 -= inset
-    return x0, x1
-
-
-def iter_opaque_pixels(frame: Image.Image):
-    arr = frame.load()
-    w, h = frame.size
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = arr[x, y]
-            if a > 20 and (r + g + b) > 40:
-                yield x, y
-
-
-def bbox(frame: Image.Image):
-    pts = list(iter_opaque_pixels(frame))
-    if not pts:
-        return 0, 0, frame.width - 1, frame.height - 1
-    xs, ys = zip(*pts)
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def strip_stand_and_rod(frame: Image.Image) -> Image.Image:
-    out = frame.copy()
-    w, h = out.size
-    arr = out.load()
-    cx = w * 0.5
-    base_y = h * 0.84
-    rx = w * 0.32
-    ry = h * 0.11
-
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = arr[x, y]
-            if a < 10:
-                continue
-            if abs(x - cx) < 7 and y > h * 0.34 and r > 120 and g > 120 and b > 120:
-                arr[x, y] = (0, 0, 0, 0)
-                continue
-            nx = (x - cx) / rx
-            ny = (y - base_y) / ry
-            if nx * nx + ny * ny <= 1.0 and r < 40 and g < 40 and b < 45:
-                arr[x, y] = (0, 0, 0, 0)
-    return out
-
-
-def process_frame(frame: Image.Image, out_index: int) -> Image.Image:
-    frame = fix_center_seam(frame)
-    frame = strip_stand_and_rod(frame)
-    x0, y0, x1, y1 = bbox(frame)
-    cropped = frame.crop((x0, y0, x1 + 1, y1 + 1))
-
-    canvas = Image.new("RGBA", (TARGET_FRAME_W, TARGET_FRAME_H), (0, 0, 0, 0))
-    scale = min(
-        (TARGET_FRAME_W * 0.99) / cropped.width,
-        (TARGET_FRAME_H * 0.97) / cropped.height,
-    )
-    nw = max(1, int(cropped.width * scale))
-    nh = max(1, int(cropped.height * scale))
-    resized = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
-
-    x = (TARGET_FRAME_W - nw) // 2
-    if out_index in JUMP_OUT_FRAMES:
-        y = max(0, int((TARGET_FRAME_H - nh) * 0.02))
-    elif out_index == 1 or out_index == 5:
-        y = TARGET_FRAME_H - nh - 6
-    else:
-        y = TARGET_FRAME_H - nh - 1
-
-    canvas.paste(resized, (x, y), resized)
-    return canvas
+def load_clean_source() -> Image.Image:
+    img = Image.open(PREVIEW_PATH).convert("RGBA")
+    img = strip_bg(img)
+    return strip_stand_rod(img)
 
 
 def main():
-    src_path = RAW_PATH if RAW_PATH.exists() else SHEET_PATH
-    sheet = Image.open(src_path).convert("RGBA")
-    w, h = sheet.size
-    raw_frames = [
-        sheet.crop((frame_bounds(w, i, FRAMES)[0], 0, frame_bounds(w, i, FRAMES)[1], h))
-        for i in range(FRAMES)
-    ]
-    frames = [process_frame(f, i) for i, f in enumerate(raw_frames)]
+    if not PREVIEW_PATH.exists():
+        raise SystemExit(f"Missing preview: {PREVIEW_PATH}")
 
-    out_w = TARGET_FRAME_W * FRAMES
-    out = Image.new("RGBA", (out_w, TARGET_FRAME_H), (0, 0, 0, 0))
-    for i, frame in enumerate(frames):
-        out.paste(frame, (i * TARGET_FRAME_W, 0), frame)
+    source = load_clean_source()
+    x0, y0, x1, y1 = bbox(source)
+    cropped = source.crop((x0, y0, x1 + 1, y1 + 1))
+    frames = [place_on_canvas(cropped, lift_px=JUMP_LIFT.get(i, 0)) for i in range(FRAMES)]
 
+    out = build_sheet(frames)
     out.save(SHEET_PATH, optimize=True)
     frames[0].save(IDLE_PATH, optimize=True)
     print(f"Wrote {SHEET_PATH} ({out.size}) and {IDLE_PATH}")

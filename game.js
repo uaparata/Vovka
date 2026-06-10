@@ -173,9 +173,47 @@ const POKEMONS = [
     weapon: 'fists',
     desc: 'Бьёт экран — зинкоины за каждый удар',
   },
+  {
+    id: 'sasha',
+    name: 'Sasha',
+    image: 'assets/pokemon/sasha-idle.png',
+    spriteSheet: 'assets/pokemon/sasha-sheet.png',
+    spriteFrames: 7,
+    animMs: 770,
+    animClass: 'play-handbag',
+    fillsSlot: true,
+    price: 100_000,
+    upgradeBasePrice: 32_000,
+    upgradePriceAtMax: 95_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 420_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2600,
+    weapon: 'fists',
+    desc: 'Крутит сумочкой — зинкоины за каждый взмах',
+  },
+  {
+    id: 'renato',
+    name: 'Renato',
+    image: 'assets/pokemon/renato-idle.png',
+    spriteSheet: 'assets/pokemon/renato-sheet.png',
+    spriteFrames: 7,
+    animMs: 770,
+    animClass: 'play-uppercut',
+    fillsSlot: true,
+    price: 120_000,
+    upgradeBasePrice: 34_000,
+    upgradePriceAtMax: 100_000_000_000,
+    maxLevel: 100,
+    perHourAtMax: 440_000_000,
+    perHourCurve: 'cubic',
+    punchIntervalMs: 2700,
+    weapon: 'fists',
+    desc: 'Борода + thumbs up — зинкоины за каждый жест',
+  },
 ];
 
-let assetVersionTag = '26';
+let assetVersionTag = '27';
 const POKEMON_WRAP_ANIM_CLASSES = ['is-bounce-anim', 'is-punch-anim', 'is-saber-anim'];
 
 function pokemonAssetUrl(path) {
@@ -1198,7 +1236,7 @@ function triggerPokemonUppercut(pokemonId, earned = 0, showCoin = true) {
 
   if (animClass === 'play-uppercut') wrap?.classList.add('is-bounce-anim');
   else if (animClass === 'play-punch-break') wrap?.classList.add('is-punch-anim');
-  else if (animClass === 'play-lightsaber') wrap?.classList.add('is-saber-anim');
+  else if (animClass === 'play-lightsaber' || animClass === 'play-handbag') wrap?.classList.add('is-saber-anim');
 
   const slot = sprite.closest('.pokemon-slot');
   if (slot) slot.classList.add('is-animating');

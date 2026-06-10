@@ -441,8 +441,9 @@ body {
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  width: 100%;
-  height: auto;
+  height: 96%;
+  width: auto;
+  max-width: 142%;
   aspect-ratio: 320 / 900;
   z-index: 2;
   pointer-events: none;
@@ -450,8 +451,8 @@ body {
 }
 
 .pokemon-sprite-wrap--fills-slot {
-  width: 118%;
-  bottom: 0;
+  height: 96%;
+  max-width: 142%;
 }
 
 .pokemon-sprite {

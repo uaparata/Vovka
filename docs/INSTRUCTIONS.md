@@ -51,25 +51,25 @@
 | CSS `background-size` | `calc(N * 100%) 100%` |
 | CSS `steps()` | `steps(N - 1)` |
 
-**Сборка:**
+**Сборка (единый pipeline):**
 
 ```bash
-# Скопируй и адаптируй один из скриптов:
-cp scripts/process-bitcoin-sprites.py scripts/process-<имя>-sprites.py
-# Правь: RAW_PATH, FRAMES=7, PUNCH_FRAMES / JUMP_FRAMES
-
-python scripts/process-<имя>-sprites.py
+python scripts/process-kirill-sprites.py      # Mullin — preview PNG
+python scripts/process-bitcoin-sprites.py     # BITCOIN — idle raw + poses
+python scripts/process-nikita-sprites.py      # Nikita — 7 кадров
+python scripts/process-sasha-sprites.py       # Sasha — 7 кадров
+python scripts/process-renato-sprites.py      # Renato — 7 кадров
 ```
+
+Все скрипты используют `scripts/pokemon_sprite_common.py` (`CHAR_HEIGHT=300`, линия ног, удаление белой полоски).
 
 Выход:
 - `assets/pokemon/<id>-idle.png`
 - `assets/pokemon/<id>-sheet.png`
 
-Для Mullin (6 кадров, прыжок): `python scripts/process-kirill-sprites.py`  
-Для BITCOIN (6 кадров, меч): `python scripts/process-bitcoin-sprites.py`  
-Для Nikita (7 кадров, удар по экрану): `python scripts/process-nikita-sprites.py`
+Требуется: `pip install Pillow`.
 
-Требуется: `pip install Pillow`, модуль `scripts/sprite_seam_fix.py` (для AI-швов у Mullin).
+**Не использовать:** `fix_center_seam()` на финале; процедурный `generate-*-sprites.py`.
 
 ---
 

@@ -1,4 +1,4 @@
-"""Process Nikita Funko pose sheet (7 frames)."""
+"""Process Renato Funko pose sheet (7 frames)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,18 +8,18 @@ from PIL import Image
 from pokemon_sprite_common import bbox, build_sheet, crop_pose_row, place_on_canvas, strip_bg
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_PATH = ROOT / "Pokemons" / "nikita-funko" / "nikita-poses-raw.png"
-SHEET_PATH = ROOT / "assets" / "pokemon" / "nikita-sheet.png"
-IDLE_PATH = ROOT / "assets" / "pokemon" / "nikita-idle.png"
+RAW_PATH = ROOT / "Pokemons" / "renato-funko" / "renato-poses-raw.png"
+SHEET_PATH = ROOT / "assets" / "pokemon" / "renato-sheet.png"
+IDLE_PATH = ROOT / "assets" / "pokemon" / "renato-idle.png"
 FRAMES = 7
-PUNCH_LIFT = {2: -24, 3: -40, 4: -52, 5: -36}
+RISE_LIFT = {1: -16, 2: -8, 3: -12, 4: -20, 5: -28}
 
 
 def process_frame(frame: Image.Image, index: int) -> Image.Image:
     frame = strip_bg(frame)
     x0, y0, x1, y1 = bbox(frame)
     cropped = frame.crop((x0, y0, x1 + 1, y1 + 1))
-    return place_on_canvas(cropped, lift_px=PUNCH_LIFT.get(index, 0))
+    return place_on_canvas(cropped, lift_px=RISE_LIFT.get(index, 0))
 
 
 def main():

@@ -1,5 +1,36 @@
 # Баги и исправления
 
+## Исправлено (2026-06-10, ночь)
+
+### Разный размер Pokemons + обрезанная голова BITCOIN + белая полоска снизу
+
+**Симптомы:**
+- Mullin, BITCOIN, Nikita, Sasha, Renato **разного размера** в слотах фермы.
+- У **BITCOIN** срезана правая часть головы.
+- У **Mullin** — шахматная прозрачность / чёрный шов по центру (checkerboard).
+- У **Nikita** слишком мелкий относительно остальных.
+- Под ногами персонажа — **белая горизонтальная полоска** (остаток белого фона / подставки Funko в PNG).
+
+**Причины:**
+| Баг | Причина |
+|-----|---------|
+| Разный размер | У каждого скрипта был свой `TARGET_CHAR_H` / `scale`; CSS `width:118%` без ограничения `height` — на части экранов голова обрезалась, на других персонаж казался мелким |
+| BITCOIN: срез головы | `bitcoin-poses-raw.png` — узкие панели; равное деление sheet + inset **обрезало** край позы; idle брался из обрезанного кадра |
+| Mullin: checkerboard / шов | `kirill-sheet-raw.png` с AI-швом по центру + `fix_center_seam()` рисовал **чёрную полосу**; прозрачные пиксели в игре = checkerboard |
+| Nikita мелкий | `TARGET_CHAR_H=250` и большой bbox после crop — scale меньше, чем у BITCOIN |
+| Белая полоска | Не удалённый белый фон / край подставки в нижних 5–10% кадра 320×900; виден через `background-position: bottom` |
+
+**Фикс:**
+- Единый модуль `scripts/pokemon_sprite_common.py`: `CHAR_HEIGHT=300`, общая линия ног (`FEET_PAD`), `strip_white_bottom()` + `trim_bottom_white_rows()`.
+- **Mullin** — из чистого `kirill-mulin-funko-preview.png` (без raw sheet).
+- **BITCOIN** — idle из `bitcoin-funko-idle-raw.png`; poses только для кадров 1–5 с расширенным crop.
+- CSS: `.pokemon-sprite-wrap { height: 96%; max-width: 142% }` — влезает в слот без обрезки головы.
+- Добавлены **Sasha** и **Renato** через тот же pipeline.
+
+**Не использовать:** `fix_center_seam()` на финальных ассетах; `strip-sprite-bottom.py` без бэкапа.
+
+---
+
 ## Исправлено (2026-06-10, вечер)
 
 ### Pokemons выглядят по-разному на разных устройствах + стали мелкими
