@@ -413,14 +413,14 @@ function mergeUpgradeLevels(...levelObjs) {
   return result;
 }
 
-function mergeSaves(...saves) {
-  const valid = saves.filter(Boolean);
-  if (!valid.length) return defaultSave();
+function savesWithProgress(saves) {
+  const meaningful = saves.filter((s) => s && !isFreshResetSave(s));
+  return meaningful.length ? meaningful : saves.filter(Boolean);
+}
 
-  const resetSave = valid.find(isFreshResetSave);
-  if (resetSave && valid.some((s) => !isFreshResetSave(s) && (s.totalEarned || 0) > 0)) {
-    return { ...defaultSave(), ...resetSave };
-  }
+function mergeSaves(...saves) {
+  const valid = savesWithProgress(saves);
+  if (!valid.length) return defaultSave();
 
   const primary = valid.reduce((a, b) =>
     (a.totalEarned || 0) >= (b.totalEarned || 0) ? a : b
@@ -468,8 +468,10 @@ function reconcileSaves(server, client) {
     return copy;
   }
 
-  if (isFreshResetSave(srv)) {
-    return { ...defaultSave(), ...srv };
+  if (isFreshResetSave(srv) && !isFreshResetSave(client)) {
+    const merged = mergeSaves(client);
+    syncMaxLevel(merged);
+    return merged;
   }
 
   const tapDelta = Math.max(0, Math.floor((client.totalTaps || 0) - (srv.totalTaps || 0)));

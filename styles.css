@@ -413,11 +413,6 @@ body {
   letter-spacing: 0.06em;
 }
 
-.pokemon-slot.filled.is-animating {
-  overflow: visible;
-  z-index: 6;
-}
-
 .pokemon-slot-stage {
   position: absolute;
   left: 0;
@@ -426,10 +421,6 @@ body {
   bottom: 20px;
   overflow: hidden;
   border-radius: 12px 12px 0 0;
-}
-
-.pokemon-slot.filled.is-animating .pokemon-slot-stage {
-  overflow: visible;
 }
 
 .pokemon-slot-floor {
@@ -479,10 +470,6 @@ body {
   animation-fill-mode: forwards;
 }
 
-.pokemon-sprite--fills-slot.play-uppercut {
-  animation-name: pokemon-uppercut-sprite-full;
-}
-
 @keyframes pokemon-uppercut-sprite {
   from {
     background-position: 0% center;
@@ -492,41 +479,10 @@ body {
   }
 }
 
-@keyframes pokemon-uppercut-sprite-full {
-  0% {
-    background-position: 0% center;
-    transform: translateX(-50%) translateY(6%);
-  }
-  20% {
-    background-position: 20% center;
-    transform: translateX(-50%) translateY(8%);
-  }
-  40% {
-    background-position: 40% center;
-    transform: translateX(-50%) translateY(-8%);
-  }
-  60% {
-    background-position: 60% center;
-    transform: translateX(-50%) translateY(4%);
-  }
-  80% {
-    background-position: 80% center;
-    transform: translateX(-50%) translateY(-16%);
-  }
-  100% {
-    background-position: 100% center;
-    transform: translateX(-50%) translateY(6%);
-  }
-}
-
 .pokemon-sprite.play-lightsaber {
   animation-name: pokemon-lightsaber-sprite;
   animation-timing-function: steps(5);
   animation-fill-mode: forwards;
-}
-
-.pokemon-sprite--fills-slot.play-lightsaber {
-  animation-name: pokemon-lightsaber-sprite-full;
 }
 
 @keyframes pokemon-lightsaber-sprite {
@@ -545,33 +501,6 @@ body {
   100% {
     background-position: 100% center;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.35));
-  }
-}
-
-@keyframes pokemon-lightsaber-sprite-full {
-  0% {
-    background-position: 0% center;
-    transform: translateX(-50%) translateY(6%);
-  }
-  20% {
-    background-position: 20% center;
-    transform: translateX(-50%) translateY(8%);
-  }
-  40% {
-    background-position: 40% center;
-    transform: translateX(-50%) translateY(-6%);
-  }
-  60% {
-    background-position: 60% center;
-    transform: translateX(-50%) translateY(4%);
-  }
-  80% {
-    background-position: 80% center;
-    transform: translateX(-50%) translateY(-14%);
-  }
-  100% {
-    background-position: 100% center;
-    transform: translateX(-50%) translateY(6%);
   }
 }
 
@@ -648,6 +577,8 @@ body {
   gap: 12px;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   border-radius: var(--radius);
   padding: 12px 14px;
   cursor: pointer;
@@ -900,6 +831,8 @@ body {
 
 .tab {
   flex: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   height: 40px;
   min-height: 40px;
   max-height: 40px;
@@ -1269,6 +1202,8 @@ body {
   gap: 12px;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   border-radius: var(--radius);
   padding: 12px 14px;
   cursor: pointer;

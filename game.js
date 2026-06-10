@@ -192,6 +192,7 @@ const defaultState = () => ({
 });
 
 let pokemonVisualTimers = {};
+let shopActionBusy = false;
 
 let state = defaultState();
 let currentUser = null;
@@ -335,14 +336,14 @@ function clearStaleLocalSaves(userId) {
   localStorage.removeItem(STORAGE_LEGACY);
 }
 
-function mergeSaveStates(...saves) {
-  const valid = saves.filter(Boolean);
-  if (!valid.length) return defaultState();
+function savesWithProgress(saves) {
+  const meaningful = saves.filter((s) => s && !isFreshResetSave(s));
+  return meaningful.length ? meaningful : saves.filter(Boolean);
+}
 
-  const resetSave = valid.find(isFreshResetSave);
-  if (resetSave && valid.some((s) => !isFreshResetSave(s) && (s.totalEarned || 0) > 0)) {
-    return { ...defaultState(), ...resetSave };
-  }
+function mergeSaveStates(...saves) {
+  const valid = savesWithProgress(saves);
+  if (!valid.length) return defaultState();
 
   const primary = valid.reduce((a, b) =>
     (a.totalEarned || 0) >= (b.totalEarned || 0) ? a : b
@@ -435,14 +436,15 @@ function getSavePayload() {
 
 function applySaveData(data) {
   const base = defaultState();
+  const prevMaxLevel = state.maxLevel || 1;
   state = {
     ...base,
     balance: data.balance ?? 0,
     energy: data.energy ?? 320,
     totalTaps: data.totalTaps ?? 0,
     totalEarned: data.totalEarned ?? 0,
-    maxLevel: data.maxLevel ?? 1,
-    peakBalance: data.peakBalance ?? 0,
+    maxLevel: Math.max(data.maxLevel ?? 1, prevMaxLevel),
+    peakBalance: Math.max(data.peakBalance ?? 0, state.peakBalance ?? 0),
     upgradeLevels: isFreshResetSave(data)
       ? { ...base.upgradeLevels }
       : { ...base.upgradeLevels, ...(data.upgradeLevels || {}) },
@@ -629,26 +631,16 @@ async function loadCloudSave() {
 
     const data = await res.json();
     const cloud = data.save || null;
-    if (cloud && isFreshResetSave(cloud)) {
-      clearStaleLocalSaves(userId);
-      applySaveData(cloud);
-      saveState();
-      render();
-      return;
-    }
-
     const merged = mergeSaveStates(bestLocal, cloud);
     applySaveData(merged);
     saveState();
 
-    if ((cloud?.totalEarned || 0) === 0 && (cloud?.balance || 0) === 0) {
-      return;
-    }
-
-    const reconciled = await reconcileSaveToServer(getSavePayload());
-    if (reconciled && !isFreshResetSave(reconciled)) {
-      applySaveData(reconciled);
-      saveState();
+    if (saveNeedsSync(cloud, merged)) {
+      const reconciled = await reconcileSaveToServer(getSavePayload());
+      if (reconciled) {
+        applySaveData(mergeSaveStates(merged, reconciled));
+        saveState();
+      }
     }
   } catch (_) {
     applySaveData(bestLocal);
@@ -1062,9 +1054,6 @@ function buildPokemonFarm() {
         <span class="pokemon-slot-unlock-label">слот</span>
       `;
       el.title = `Открыть слот: ${formatNum(price)} зинкоинов`;
-      if (canBuy) {
-        el.addEventListener('click', () => buyPokemonSlot(index));
-      }
       farm.appendChild(el);
       continue;
     }
@@ -1131,7 +1120,6 @@ function updatePokemonFarmLockedSlots() {
     const price = getPokemonSlotPrice(index);
     const canBuy = index === unlocked && state.balance >= price;
     el.classList.toggle('can-buy', canBuy);
-    el.onclick = canBuy ? () => buyPokemonSlot(index) : null;
   });
 }
 
@@ -1212,6 +1200,7 @@ function renderPokemonShop() {
       (canBuy || canUpgrade ? ' can-buy' : '') +
       (isOwned ? ' owned' : '') +
       (maxed ? ' maxed' : '');
+    card.dataset.pokemonId = pokemon.id;
     card.innerHTML = `
       <img class="pokemon-shop-thumb" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
       <div class="pokemon-shop-info">
@@ -1236,12 +1225,6 @@ function renderPokemonShop() {
       </div>
     `;
 
-    if (canBuy) {
-      card.addEventListener('click', () => buyPokemon(pokemon));
-    } else if (canUpgrade) {
-      card.addEventListener('click', () => upgradePokemon(pokemon));
-    }
-
     if (isOwned) {
       const deployBtn = document.createElement('button');
       deployBtn.type = 'button';
@@ -1259,11 +1242,14 @@ function renderPokemonShop() {
 }
 
 async function upgradePokemon(pokemon) {
+  if (shopActionBusy) return;
   const lvl = state.ownedPokemon?.[pokemon.id] || 0;
   if (lvl <= 0 || lvl >= pokemon.maxLevel) return;
   const price = getPokemonUpgradePrice(pokemon);
   if (state.balance < price) return;
 
+  shopActionBusy = true;
+  try {
   if (currentUser) {
     const res = await fetch('/api/upgrade-pokemon', {
       method: 'POST',
@@ -1288,14 +1274,20 @@ async function upgradePokemon(pokemon) {
   triggerPokemonUppercut(pokemon.id, 0, false);
   saveState();
   render();
+  } finally {
+    shopActionBusy = false;
+  }
 }
 
 async function buyPokemonSlot(slotIndex) {
+  if (shopActionBusy) return;
   const unlocked = getUnlockedSlotCount();
   if (slotIndex !== unlocked) return;
   const price = getPokemonSlotPrice(slotIndex);
   if (state.balance < price) return;
 
+  shopActionBusy = true;
+  try {
   if (currentUser) {
     const res = await fetch('/api/buy-pokemon-slot', {
       method: 'POST',
@@ -1318,12 +1310,18 @@ async function buyPokemonSlot(slotIndex) {
   pokemonFarmRenderKey = '';
   saveState();
   render();
+  } finally {
+    shopActionBusy = false;
+  }
 }
 
 async function togglePokemonDeploy(pokemon) {
+  if (shopActionBusy) return;
   const deploy = !isPokemonDeployed(pokemon.id);
   if (deploy && !hasEmptyDeploySlot()) return;
 
+  shopActionBusy = true;
+  try {
   if (currentUser) {
     const res = await fetch('/api/pokemon-deploy', {
       method: 'POST',
@@ -1354,12 +1352,18 @@ async function togglePokemonDeploy(pokemon) {
   pokemonFarmRenderKey = '';
   saveState();
   render();
+  } finally {
+    shopActionBusy = false;
+  }
 }
 
 async function buyPokemon(pokemon) {
+  if (shopActionBusy) return;
   if ((state.ownedPokemon[pokemon.id] || 0) > 0) return;
   if (state.balance < pokemon.price) return;
 
+  shopActionBusy = true;
+  try {
   if (currentUser) {
     const res = await fetch('/api/buy-pokemon', {
       method: 'POST',
@@ -1392,6 +1396,9 @@ async function buyPokemon(pokemon) {
   state.pokemonMeta[`lastPunch_${pokemon.id}`] = Date.now();
   saveState();
   render();
+  } finally {
+    shopActionBusy = false;
+  }
 }
 
 function renderUpgrades() {
@@ -1406,6 +1413,7 @@ function renderUpgrades() {
 
     const card = document.createElement('div');
     card.className = 'upgrade-card' + (canBuy ? ' can-buy' : '') + (maxed ? ' maxed' : '');
+    card.dataset.upgradeId = upgrade.id;
     card.innerHTML = `
       <div class="upgrade-icon">${upgrade.icon}</div>
       <div class="upgrade-info">
@@ -1420,15 +1428,14 @@ function renderUpgrades() {
       </div>
     `;
 
-    if (!maxed) {
-      card.addEventListener('click', () => buyUpgrade(upgrade));
-    }
-
     list.appendChild(card);
   }
 }
 
 async function buyUpgrade(upgrade) {
+  if (shopActionBusy) return;
+  shopActionBusy = true;
+  try {
   if (currentUser) {
     const res = await fetch('/api/buy-upgrade', {
       method: 'POST',
@@ -1453,6 +1460,9 @@ async function buyUpgrade(upgrade) {
   state.upgradeLevels[upgrade.id]++;
   saveState();
   render();
+  } finally {
+    shopActionBusy = false;
+  }
 }
 
 function spawnFloat(x, y, amount) {
@@ -1910,18 +1920,52 @@ function initAvatar() {
   });
 }
 
+function switchTab(tabId) {
+  $$('.tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.tab === tabId);
+  });
+  $$('.panel').forEach((p) => p.classList.remove('active'));
+  $(`#panel-${tabId}`)?.classList.add('active');
+  if (tabId === 'leaderboard') {
+    renderLeaderboard();
+    startLeaderboardLive();
+  }
+}
+
 function initTabs() {
   $$('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      $$('.tab').forEach((t) => t.classList.remove('active'));
-      $$('.panel').forEach((p) => p.classList.remove('active'));
-      tab.classList.add('active');
-      $(`#panel-${tab.dataset.tab}`).classList.add('active');
-      if (tab.dataset.tab === 'leaderboard') {
-        renderLeaderboard();
-        startLeaderboardLive();
-      }
+    tab.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      switchTab(tab.dataset.tab);
     });
+  });
+}
+
+function initShopPanels() {
+  $('#upgrades-list')?.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest('.upgrade-card.can-buy');
+    if (!card) return;
+    const upgrade = UPGRADES.find((u) => u.id === card.dataset.upgradeId);
+    if (upgrade) buyUpgrade(upgrade);
+  });
+
+  $('#pokemon-shop-list')?.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.pokemon-deploy-btn')) return;
+    const card = e.target.closest('.pokemon-shop-card.can-buy');
+    if (!card) return;
+    const pokemon = POKEMONS.find((p) => p.id === card.dataset.pokemonId);
+    if (!pokemon) return;
+    const owned = state.ownedPokemon?.[pokemon.id] || 0;
+    if (owned > 0) upgradePokemon(pokemon);
+    else buyPokemon(pokemon);
+  });
+
+  $('#pokemon-farm')?.addEventListener('pointerdown', (e) => {
+    const slot = e.target.closest('.pokemon-slot.locked.can-buy');
+    if (!slot) return;
+    const index = Number(slot.dataset.slot);
+    if (Number.isFinite(index)) buyPokemonSlot(index);
   });
 }
 
@@ -2058,6 +2102,7 @@ async function boot() {
   handleAuthRedirect();
   if (!(await ensureLatestAssets())) return;
   initTabs();
+  initShopPanels();
   initTap();
   initPokemonVisualLoop();
   initLogin();
@@ -2087,11 +2132,8 @@ async function boot() {
         }
         if (res.ok) {
           const { save, punchEvents } = await res.json();
-          if (isFreshResetSave(save)) {
-            clearStaleLocalSaves(currentUser.id);
-          }
           const prevBalance = state.balance;
-          applySaveData(save);
+          applySaveData(mergeSaveStates(state, save));
           if (Array.isArray(punchEvents)) {
             for (const ev of punchEvents) {
               triggerPokemonUppercut(ev.id, ev.earned);
