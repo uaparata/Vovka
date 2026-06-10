@@ -73,16 +73,6 @@ const UPGRADES = [
     effect: (lvl) => ({ perTap: lvl * 3 }),
   },
   {
-    id: 'creatine',
-    name: 'Креатин',
-    icon: '💊',
-    desc: '+200 зинкоинов в час',
-    basePrice: 500,
-    priceMult: 1.65,
-    maxLevel: 25,
-    effect: (lvl) => ({ perHour: lvl * 200 }),
-  },
-  {
     id: 'tshirt',
     name: 'Футболка LOSING MY MIND',
     icon: '👕',
@@ -103,16 +93,6 @@ const UPGRADES = [
     effect: (lvl) => ({ maxEnergy: lvl * 12 }),
   },
   {
-    id: 'ring',
-    name: 'Кольцо силы',
-    icon: '💍',
-    desc: '+150% к пассивному доходу за уровень',
-    basePrice: 2000,
-    priceMult: 2.2,
-    maxLevel: 8,
-    effect: (lvl) => ({ hourMult: 1 + lvl * 1.5 }),
-  },
-  {
     id: 'jacket',
     name: 'Куртка на плече',
     icon: '🧥',
@@ -124,6 +104,22 @@ const UPGRADES = [
   },
 ];
 
+const MAX_POKEMON_SLOTS = 4;
+
+const POKEMONS = [
+  {
+    id: 'kirill',
+    name: 'Kirill Mulin',
+    image: 'assets/pokemon-kirill.png',
+    price: 10_000,
+    maxLevel: 20,
+    perHourBase: 500,
+    punchIntervalMs: 2500,
+    weapon: 'fists',
+    desc: 'Бьёт кулаками — зинкоины за каждый удар',
+  },
+];
+
 const defaultState = () => ({
   balance: 0,
   energy: 320,
@@ -132,10 +128,15 @@ const defaultState = () => ({
   maxLevel: 1,
   peakBalance: 0,
   upgradeLevels: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
+  ownedPokemon: {},
+  pokemonMeta: {},
+  pokemonFarmBuffer: {},
   lastSave: Date.now(),
   lastPassive: Date.now(),
   lastEnergyRegen: Date.now(),
 });
+
+let pokemonVisualTimers = {};
 
 let state = defaultState();
 let currentUser = null;
@@ -172,12 +173,44 @@ function isFreshResetSave(save) {
     (sum, lvl) => sum + (Number(lvl) || 0),
     0
   );
+  const pokemonSum = Object.values(save.ownedPokemon || {}).reduce(
+    (sum, lvl) => sum + (Number(lvl) || 0),
+    0
+  );
   return (
     upgradeSum === 0 &&
+    pokemonSum === 0 &&
     (save.totalTaps || 0) === 0 &&
     (save.totalEarned || 0) === 0 &&
     (save.balance || 0) === 0
   );
+}
+
+function countOwnedPokemon(ownedPokemon) {
+  return Object.values(ownedPokemon || {}).filter((lvl) => (lvl || 0) > 0).length;
+}
+
+function calcPokemonStats() {
+  const owned = state.ownedPokemon || {};
+  let perHour = 0;
+  let count = 0;
+  const active = [];
+
+  for (const pokemon of POKEMONS) {
+    const lvl = owned[pokemon.id] || 0;
+    if (lvl <= 0) continue;
+    count += 1;
+    const ph = pokemon.perHourBase * lvl;
+    perHour += ph;
+    active.push({
+      id: pokemon.id,
+      level: lvl,
+      perHour: ph,
+      punchIntervalMs: pokemon.punchIntervalMs,
+    });
+  }
+
+  return { perHour, count, active };
 }
 
 function clearStaleLocalSaves(userId) {
@@ -206,6 +239,13 @@ function mergeSaveStates(...saves) {
     }
   }
 
+  const ownedPokemon = {};
+  for (const s of valid) {
+    for (const [id, lvl] of Object.entries(s.ownedPokemon || {})) {
+      ownedPokemon[id] = Math.max(ownedPokemon[id] || 0, lvl || 0);
+    }
+  }
+
   const merged = {
     ...defaultState(),
     balance: Math.max(...valid.map((s) => s.balance || 0)),
@@ -218,6 +258,9 @@ function mergeSaveStates(...saves) {
       ...valid.map((s) => s.balance || 0)
     ),
     upgradeLevels,
+    ownedPokemon,
+    pokemonMeta: valid.reduce((a, b) => ({ ...a, ...(b.pokemonMeta || {}) }), {}),
+    pokemonFarmBuffer: valid.reduce((a, b) => ({ ...a, ...(b.pokemonFarmBuffer || {}) }), {}),
     lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
     lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
@@ -244,6 +287,9 @@ function getSavePayload() {
     maxLevel: state.maxLevel,
     peakBalance: state.peakBalance,
     upgradeLevels: state.upgradeLevels,
+    ownedPokemon: state.ownedPokemon,
+    pokemonMeta: state.pokemonMeta,
+    pokemonFarmBuffer: state.pokemonFarmBuffer,
     lastPassive: state.lastPassive,
     lastEnergyRegen: state.lastEnergyRegen,
     lastSave: state.lastSave,
@@ -263,6 +309,15 @@ function applySaveData(data) {
     upgradeLevels: isFreshResetSave(data)
       ? { ...base.upgradeLevels }
       : { ...base.upgradeLevels, ...(data.upgradeLevels || {}) },
+    ownedPokemon: isFreshResetSave(data)
+      ? { ...base.ownedPokemon }
+      : { ...base.ownedPokemon, ...(data.ownedPokemon || {}) },
+    pokemonMeta: isFreshResetSave(data)
+      ? { ...base.pokemonMeta }
+      : { ...base.pokemonMeta, ...(data.pokemonMeta || {}) },
+    pokemonFarmBuffer: isFreshResetSave(data)
+      ? { ...base.pokemonFarmBuffer }
+      : { ...base.pokemonFarmBuffer, ...(data.pokemonFarmBuffer || {}) },
     lastPassive: data.lastPassive ?? Date.now(),
     lastEnergyRegen: data.lastEnergyRegen ?? data.lastPassive ?? Date.now(),
     lastSave: data.lastSave ?? Date.now(),
@@ -605,10 +660,8 @@ function getUpgradePrice(upgrade) {
 
 function calcStats() {
   let perTap = 1;
-  let perHour = 0;
   let maxEnergy = 320;
   let tapMult = 1;
-  let hourMult = 1;
   let energyRegen = 0.18;
 
   for (const upgrade of UPGRADES) {
@@ -616,19 +669,62 @@ function calcStats() {
     if (lvl === 0) continue;
     const eff = upgrade.effect(lvl);
     if (eff.perTap) perTap += eff.perTap;
-    if (eff.perHour) perHour += eff.perHour;
     if (eff.maxEnergy) maxEnergy += eff.maxEnergy;
     if (eff.tapMult) tapMult = eff.tapMult;
-    if (eff.hourMult) hourMult = eff.hourMult;
     if (eff.energyRegen) energyRegen += eff.energyRegen;
   }
 
+  const pokemonStats = calcPokemonStats();
+
   return {
     perTap: Math.floor(perTap * tapMult),
-    perHour: Math.floor(perHour * hourMult),
+    perHour: Math.floor(pokemonStats.perHour),
     maxEnergy,
     energyRegen,
+    pokemonCount: pokemonStats.count,
+    pokemonActive: pokemonStats.active,
   };
+}
+
+function applyPokemonPunches(now = Date.now()) {
+  const { active } = calcPokemonStats();
+  if (!active.length) return { earned: 0, punchEvents: [] };
+
+  if (!state.pokemonMeta) state.pokemonMeta = {};
+  if (!state.pokemonFarmBuffer) state.pokemonFarmBuffer = {};
+
+  const maxElapsedMs = 4 * 3600 * 1000;
+  let totalEarned = 0;
+  const punchEvents = [];
+
+  for (const p of active) {
+    const def = POKEMONS.find((x) => x.id === p.id);
+    if (!def) continue;
+
+    const key = `lastPunch_${p.id}`;
+    const last = state.pokemonMeta[key] || state.lastPassive || now;
+    const elapsed = Math.min(Math.max(0, now - last), maxElapsedMs);
+    const punches = Math.floor(elapsed / def.punchIntervalMs);
+    if (punches <= 0) continue;
+
+    const coinsPerPunch = (def.perHourBase * p.level * def.punchIntervalMs) / 3_600_000;
+    state.pokemonFarmBuffer[p.id] = (state.pokemonFarmBuffer[p.id] || 0) + punches * coinsPerPunch;
+    const whole = Math.floor(state.pokemonFarmBuffer[p.id]);
+    if (whole > 0) {
+      state.pokemonFarmBuffer[p.id] -= whole;
+      totalEarned += whole;
+      punchEvents.push({ id: p.id, earned: whole });
+    }
+    state.pokemonMeta[key] = last + punches * def.punchIntervalMs;
+  }
+
+  if (totalEarned > 0) {
+    state.balance += totalEarned;
+    state.totalEarned += totalEarned;
+    syncMaxLevel();
+  }
+
+  return { earned: totalEarned, punchEvents };
 }
 
 function levelFromBalance(balance) {
@@ -701,7 +797,7 @@ function render() {
 
   $('#balance').textContent = formatNum(state.balance);
   $('#per-tap').textContent = `+${formatNum(stats.perTap)} за тап`;
-  $('#per-hour').textContent = `+${formatNum(stats.perHour)}/час`;
+  $('#pokemon-hour-total').textContent = `+${formatNum(stats.perHour)}/час`;
   const photoLevel = getPhotoLevelData();
   $('#level').textContent = photoLevel.level;
   $('#rank').textContent = photoLevel.name;
@@ -739,10 +835,140 @@ function render() {
 
   $('#stat-taps').textContent = formatNum(state.totalTaps);
   $('#stat-earned').textContent = formatNum(state.totalEarned);
-  $('#stat-upgrades').textContent = Object.values(state.upgradeLevels).reduce((a, b) => a + b, 0);
+  $('#stat-pokemon').textContent = `${stats.pokemonCount} / ${MAX_POKEMON_SLOTS}`;
   $('#stat-rank').textContent = `${photoLevel.level} — ${photoLevel.name}`;
 
   renderUpgrades();
+  renderPokemonFarm(stats);
+  renderPokemonShop();
+}
+
+function renderPokemonFarm(stats) {
+  const farm = $('#pokemon-farm');
+  if (!farm) return;
+
+  const owned = state.ownedPokemon || {};
+  const ownedList = POKEMONS.filter((p) => (owned[p.id] || 0) > 0);
+  const slots = [];
+
+  for (const pokemon of ownedList) {
+    slots.push({ pokemon, level: owned[pokemon.id] });
+  }
+  while (slots.length < MAX_POKEMON_SLOTS) {
+    slots.push(null);
+  }
+
+  farm.innerHTML = '';
+  slots.forEach((slot, index) => {
+    const el = document.createElement('div');
+    el.className = 'pokemon-slot' + (slot ? ' filled' : ' empty');
+    el.dataset.slot = String(index);
+
+    if (!slot) {
+      el.innerHTML = '<span class="pokemon-slot-placeholder">+</span>';
+      farm.appendChild(el);
+      return;
+    }
+
+    const { pokemon, level } = slot;
+    const perHour = pokemon.perHourBase * level;
+    el.innerHTML = `
+      <div class="pokemon-slot-img-wrap" data-pokemon-id="${pokemon.id}">
+        <img class="pokemon-slot-img" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
+      </div>
+      <div class="pokemon-slot-name">${pokemon.name}</div>
+    `;
+    el.title = `${pokemon.name} · ур. ${level} · +${formatNum(perHour)}/час`;
+    farm.appendChild(el);
+  });
+}
+
+function triggerPokemonPunchVisual(pokemonId, earned) {
+  const wrap = document.querySelector(`.pokemon-slot-img-wrap[data-pokemon-id="${pokemonId}"]`);
+  if (!wrap) return;
+  const img = wrap.querySelector('.pokemon-slot-img');
+  if (img) {
+    img.classList.remove('punch');
+    void img.offsetWidth;
+    img.classList.add('punch');
+  }
+  const slot = wrap.closest('.pokemon-slot');
+  if (!slot || earned <= 0) return;
+  const coin = document.createElement('span');
+  coin.className = 'pokemon-slot-coin';
+  coin.textContent = `+${formatNum(earned)}`;
+  slot.appendChild(coin);
+  setTimeout(() => coin.remove(), 750);
+}
+
+function renderPokemonShop() {
+  const list = $('#pokemon-shop-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const owned = state.ownedPokemon || {};
+  const slotsFull = countOwnedPokemon(owned) >= MAX_POKEMON_SLOTS;
+
+  for (const pokemon of POKEMONS) {
+    const level = owned[pokemon.id] || 0;
+    const isOwned = level > 0;
+    const canBuy = !isOwned && !slotsFull && state.balance >= pokemon.price;
+
+    const card = document.createElement('div');
+    card.className =
+      'pokemon-shop-card' + (canBuy ? ' can-buy' : '') + (isOwned ? ' owned' : '');
+    card.innerHTML = `
+      <img class="pokemon-shop-thumb" src="${pokemon.image}" alt="${pokemon.name}" draggable="false">
+      <div class="pokemon-shop-info">
+        <div class="pokemon-shop-name">${pokemon.name}</div>
+        <div class="pokemon-shop-desc">${pokemon.desc}</div>
+        <div class="pokemon-shop-meta">+${formatNum(pokemon.perHourBase)}/час · кулаки</div>
+      </div>
+      <div class="pokemon-shop-price">
+        ${
+          isOwned
+            ? '<span class="price-value">✓</span>'
+            : `<div class="price-value">💪 ${formatNum(pokemon.price)}</div><div class="price-label">купить</div>`
+        }
+      </div>
+    `;
+
+    if (!isOwned && !slotsFull) {
+      card.addEventListener('click', () => buyPokemon(pokemon));
+    }
+
+    list.appendChild(card);
+  }
+}
+
+async function buyPokemon(pokemon) {
+  if ((state.ownedPokemon[pokemon.id] || 0) > 0) return;
+  if (countOwnedPokemon(state.ownedPokemon) >= MAX_POKEMON_SLOTS) return;
+  if (state.balance < pokemon.price) return;
+
+  if (currentUser) {
+    const res = await fetch('/api/buy-pokemon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ pokemonId: pokemon.id }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    applySaveData(data.save);
+    saveState();
+    render();
+    refreshLeaderboardIfActive();
+    return;
+  }
+
+  state.balance -= pokemon.price;
+  if (!state.ownedPokemon) state.ownedPokemon = {};
+  state.ownedPokemon[pokemon.id] = 1;
+  if (!state.pokemonMeta) state.pokemonMeta = {};
+  state.pokemonMeta[`lastPunch_${pokemon.id}`] = Date.now();
+  saveState();
+  render();
 }
 
 function renderUpgrades() {
@@ -971,18 +1197,41 @@ function applyPassive() {
   const now = Date.now();
   const stats = calcStats();
   const elapsed = (now - state.lastPassive) / 1000;
-  state.lastPassive = now;
+  if (elapsed <= 0) return;
 
-  if (stats.perHour > 0 && elapsed > 0) {
-    const earned = (stats.perHour / 3600) * elapsed;
-    state.balance += earned;
-    state.totalEarned += earned;
-  }
+  state.lastPassive = now;
+  applyPokemonPunches(now);
 
   const regen = stats.energyRegen * elapsed;
   state.energy = Math.min(stats.maxEnergy, state.energy + regen);
 
   render();
+}
+
+function estimatePokemonPunchCoins(pokemon, level) {
+  return Math.max(
+    1,
+    Math.floor((pokemon.perHourBase * level * pokemon.punchIntervalMs) / 3_600_000)
+  );
+}
+
+function initPokemonVisualLoop() {
+  setInterval(() => {
+    const now = Date.now();
+    const { active } = calcPokemonStats();
+    if (!active.length) return;
+
+    for (const p of active) {
+      const def = POKEMONS.find((x) => x.id === p.id);
+      if (!def) continue;
+
+      const visualKey = `${p.id}_visual`;
+      const lastVisual = pokemonVisualTimers[visualKey] || 0;
+      if (now - lastVisual < def.punchIntervalMs) continue;
+      pokemonVisualTimers[visualKey] = now;
+      triggerPokemonPunchVisual(p.id, estimatePokemonPunchCoins(def, p.level));
+    }
+  }, 400);
 }
 
 function isLeaderboardActive() {
@@ -1354,13 +1603,10 @@ function initOfflineProgress() {
   const offline = (now - (state.lastSave || now)) / 1000;
   if (offline > 5) {
     const stats = calcStats();
-    const passive = (stats.perHour / 3600) * offline;
+    state.lastPassive = now - offline * 1000;
+    applyPokemonPunches(now);
     const regen = stats.energyRegen * offline;
     state.energy = Math.min(stats.maxEnergy, state.energy + regen);
-    if (passive > 0) {
-      state.balance += passive;
-      state.totalEarned += passive;
-    }
   }
   state.lastPassive = now;
 }
@@ -1390,6 +1636,7 @@ async function boot() {
   if (!(await ensureLatestAssets())) return;
   initTabs();
   initTap();
+  initPokemonVisualLoop();
   initLogin();
   initLogout();
   initAvatar();
@@ -1416,11 +1663,22 @@ async function boot() {
           return;
         }
         if (res.ok) {
-          const { save } = await res.json();
+          const { save, punchEvents } = await res.json();
           if (isFreshResetSave(save)) {
             clearStaleLocalSaves(currentUser.id);
           }
+          const prevBalance = state.balance;
           applySaveData(save);
+          if (Array.isArray(punchEvents)) {
+            for (const ev of punchEvents) {
+              triggerPokemonPunchVisual(ev.id, ev.earned);
+            }
+          } else if (save.balance > prevBalance) {
+            const stats = calcStats();
+            for (const p of stats.pokemonActive || []) {
+              triggerPokemonPunchVisual(p.id, 0);
+            }
+          }
           render();
           saveState();
           refreshLeaderboardIfActive();

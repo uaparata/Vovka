@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kirill Mulin — Funko Pop</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 50% 20%, #2a2a3a 0%, #0d0d12 70%);
+      color: #f4f4f8;
+      overflow: hidden;
+      height: 100vh;
+    }
+    #canvas-wrap { width: 100vw; height: 100vh; }
+    .hud {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      z-index: 2;
+      max-width: 320px;
+      padding: 16px 18px;
+      border-radius: 14px;
+      background: rgba(10, 10, 18, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+    }
+    .hud h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-bottom: 4px;
+    }
+    .hud p {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: #b8b8c8;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #e11d48;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .hint {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 2;
+      font-size: 0.78rem;
+      color: #8888a0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(10, 10, 18, 0.55);
+    }
+  </style>
+</head>
+<body>
+  <div class="hud">
+    <h1>Kirill Mulin</h1>
+    <p>Funko Pop vinyl figure — messy bleached hair, brown zip sweatshirt, stud earring.</p>
+    <span class="badge">Pokemons</span>
+  </div>
+  <p class="hint">Drag to rotate · Scroll to zoom</p>
+  <div id="canvas-wrap"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+    const wrap = document.getElementById('canvas-wrap');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x12121a);
+    scene.fog = new THREE.Fog(0x12121a, 8, 18);
+
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(0, 1.35, 3.4);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    wrap.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.95, 0);
+    controls.enableDamping = true;
+    controls.minDistance = 1.8;
+    controls.maxDistance = 6;
+    controls.maxPolarAngle = Math.PI * 0.92;
+
+    const hemi = new THREE.HemisphereLight(0xfff0e8, 0x222233, 0.9);
+    scene.add(hemi);
+
+    const key = new THREE.DirectionalLight(0xffffff, 1.35);
+    key.position.set(3, 6, 4);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    scene.add(key);
+
+    const rim = new THREE.DirectionalLight(0x88aaff, 0.45);
+    rim.position.set(-4, 3, -2);
+    scene.add(rim);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(4, 64),
+      new THREE.MeshStandardMaterial({ color: 0x1a1a24, roughness: 0.85, metalness: 0.1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const figure = new THREE.Group();
+    scene.add(figure);
+
+    const skin = new THREE.MeshStandardMaterial({ color: 0xf2d3c4, roughness: 0.55, metalness: 0.02 });
+    const hairBlonde = new THREE.MeshStandardMaterial({ color: 0xf0e6b8, roughness: 0.72, metalness: 0.03 });
+    const hairDark = new THREE.MeshStandardMaterial({ color: 0x1a1410, roughness: 0.8, metalness: 0.02 });
+    const eyeBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.35, metalness: 0.1 });
+    const shirtBrown = new THREE.MeshStandardMaterial({ color: 0x3d2f28, roughness: 0.88, metalness: 0.02 });
+    const shirtWhite = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.9, metalness: 0.01 });
+    const pantsBlack = new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.9, metalness: 0.04 });
+    const baseBlack = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.55, metalness: 0.2 });
+    const silver = new THREE.MeshStandardMaterial({ color: 0xd8dde8, roughness: 0.25, metalness: 0.85 });
+
+    function mesh(geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, cast = true) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.rotation.set(rx, ry, rz);
+      m.castShadow = cast;
+      m.receiveShadow = true;
+      return m;
+    }
+
+    // Funko base
+    const base = mesh(new THREE.CylinderGeometry(0.42, 0.48, 0.12, 32), baseBlack, 0, 0.06, 0);
+    figure.add(base);
+
+    const peg = mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.08, 16), baseBlack, 0, 0.16, 0);
+    figure.add(peg);
+
+    // Legs
+    const legGeo = new THREE.BoxGeometry(0.18, 0.34, 0.16);
+    figure.add(mesh(legGeo, pantsBlack, -0.11, 0.35, 0));
+    figure.add(mesh(legGeo, pantsBlack, 0.11, 0.35, 0));
+
+    // Torso — small Funko body
+    const torso = mesh(new THREE.BoxGeometry(0.46, 0.42, 0.28), shirtBrown, 0, 0.74, 0);
+    figure.add(torso);
+
+    // White tee collar peek
+    figure.add(mesh(new THREE.BoxGeometry(0.28, 0.06, 0.22), shirtWhite, 0, 0.93, 0.02));
+
+    // Zip line + pull tab
+    figure.add(mesh(new THREE.BoxGeometry(0.03, 0.22, 0.02), silver, 0, 0.8, 0.15));
+    figure.add(mesh(new THREE.BoxGeometry(0.05, 0.05, 0.04), silver, 0, 0.69, 0.16));
+
+    // Arms
+    const armGeo = new THREE.BoxGeometry(0.14, 0.32, 0.14);
+    figure.add(mesh(armGeo, shirtBrown, -0.32, 0.74, 0));
+    figure.add(mesh(armGeo, shirtBrown, 0.32, 0.74, 0));
+
+    // Hands
+    const handGeo = new THREE.SphereGeometry(0.07, 12, 12);
+    figure.add(mesh(handGeo, skin, -0.32, 0.54, 0));
+    figure.add(mesh(handGeo, skin, 0.32, 0.54, 0));
+
+    // Oversized Funko head
+    const head = mesh(new THREE.BoxGeometry(0.78, 0.72, 0.68), skin, 0, 1.28, 0);
+    figure.add(head);
+
+    // Big round eyes
+    const eyeGeo = new THREE.SphereGeometry(0.11, 20, 20);
+    figure.add(mesh(eyeGeo, eyeBlack, -0.16, 1.3, 0.33));
+    figure.add(mesh(eyeGeo, eyeBlack, 0.16, 1.3, 0.33));
+
+    // Tiny nose bump
+    figure.add(mesh(new THREE.SphereGeometry(0.025, 8, 8), skin, 0, 1.18, 0.34));
+
+    // Stud earring (left)
+    figure.add(mesh(new THREE.SphereGeometry(0.025, 8, 8), silver, -0.4, 1.22, 0.02));
+
+    // Hair — blonde messy top
+    const hairTop = new THREE.Group();
+    const tufts = [
+      [0, 1.68, 0, 0.34, 0.22, 0.3],
+      [-0.18, 1.64, 0.04, 0.2, 0.18, 0.22, 0, 0, 0.25],
+      [0.2, 1.66, -0.02, 0.18, 0.2, 0.2, 0, 0, -0.35],
+      [0.05, 1.7, 0.12, 0.16, 0.14, 0.18, 0.2, 0, 0.1],
+      [-0.08, 1.69, -0.1, 0.15, 0.16, 0.2, -0.15, 0, -0.2],
+    ];
+    tufts.forEach(([x, y, z, sx, sy, sz, rx = 0, ry = 0, rz = 0]) => {
+      const t = mesh(new THREE.BoxGeometry(sx, sy, sz), hairBlonde, x, y, z, rx, ry, rz);
+      hairTop.add(t);
+    });
+    figure.add(hairTop);
+
+    // Dark undercut sides/back
+    const undercutPieces = [
+      [-0.38, 1.28, 0, 0.08, 0.5, 0.62],
+      [0.38, 1.28, 0, 0.08, 0.5, 0.62],
+      [0, 1.22, -0.34, 0.62, 0.42, 0.1],
+    ];
+    undercutPieces.forEach(([x, y, z, sx, sy, sz]) => {
+      figure.add(mesh(new THREE.BoxGeometry(sx, sy, sz), hairDark, x, y, z));
+    });
+
+    // Pedestal ring
+    const ring = mesh(
+      new THREE.TorusGeometry(0.5, 0.02, 8, 48),
+      new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.4, metalness: 0.3 }),
+      0, 0.01, 0,
+      Math.PI / 2
+    );
+    scene.add(ring);
+
+    // Auto-export GLB once loaded (for game use later)
+    const exporter = new GLTFExporter();
+    exporter.parse(
+      figure,
+      (gltf) => {
+        const blob = new Blob([gltf], { type: 'model/gltf-binary' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'kirill-mulin-funko.glb';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        console.info('GLB ready — run link.click() or download from DevTools');
+        window.exportKirillGlb = () => link.click();
+      },
+      (err) => console.warn('GLB export skipped:', err),
+      { binary: true }
+    );
+
+    function animate() {
+      requestAnimationFrame(animate);
+      figure.rotation.y += 0.003;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

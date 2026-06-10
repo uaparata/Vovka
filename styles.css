@@ -254,55 +254,248 @@ body {
   letter-spacing: 0.3px;
 }
 
-.balance-section {
-  margin-bottom: 10px;
-}
-
-.balance-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  text-align: center;
-}
-
-.balance-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.balance-row {
+.header-balance {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 4px 0;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+  flex-shrink: 0;
 }
 
-.coin-icon {
-  font-size: 1.6rem;
+.coin-icon-sm {
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
-.balance-value {
-  font-size: 2rem;
+.balance-value-header {
+  font-size: 0.82rem;
   font-weight: 900;
   color: var(--gold);
   transition: transform 0.15s;
+  white-space: nowrap;
 }
 
-.balance-value.bump {
-  transform: scale(1.08);
+.balance-value-header.bump {
+  transform: scale(1.12);
 }
 
-.income-row {
-  font-size: 0.8rem;
+.pokemon-farm-section {
+  margin-bottom: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px 12px;
+}
+
+.pokemon-farm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pokemon-farm-title {
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
 }
 
-.dot {
-  margin: 0 6px;
+.pokemon-hour-total {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.pokemon-farm {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pokemon-slot {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  min-height: 88px;
+}
+
+.pokemon-slot.filled {
+  border-style: solid;
+  border-color: rgba(249, 115, 22, 0.35);
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.08), rgba(0, 0, 0, 0.25));
+}
+
+.pokemon-slot.empty .pokemon-slot-placeholder {
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  opacity: 0.45;
+  margin: auto;
+}
+
+.pokemon-slot-img-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 18px;
+  transform-origin: 50% 85%;
+}
+
+.pokemon-slot-img {
+  width: 78%;
+  max-height: 82%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+
+.pokemon-slot-img.punch {
+  animation: pokemon-punch 0.32s ease-out;
+}
+
+@keyframes pokemon-punch {
+  0% { transform: translateX(0) scale(1); }
+  35% { transform: translateX(8px) scale(1.04) rotate(2deg); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+.pokemon-slot-name {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 4px 4px 5px;
+  font-size: 0.52rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--text);
+  background: linear-gradient(transparent, rgba(13, 17, 23, 0.92));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pokemon-slot-coin {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  animation: pokemon-coin-pop 0.7s ease-out forwards;
+}
+
+@keyframes pokemon-coin-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.7); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-22px) scale(1.1); }
+}
+
+.tap-income-bar {
+  margin-bottom: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(249, 115, 22, 0.08));
+  text-align: center;
+}
+
+.tap-income-value {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.pokemon-shop-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.pokemon-shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.pokemon-shop-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.pokemon-shop-card.can-buy {
+  border-color: rgba(249, 115, 22, 0.4);
+}
+
+.pokemon-shop-card.owned {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.pokemon-shop-card:active:not(.owned) {
+  transform: scale(0.98);
+}
+
+.pokemon-shop-thumb {
+  width: 52px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.pokemon-shop-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pokemon-shop-name {
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.pokemon-shop-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.pokemon-shop-meta {
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.pokemon-shop-price {
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .energy-section {
@@ -478,13 +671,13 @@ body {
   height: 40px;
   min-height: 40px;
   max-height: 40px;
-  padding: 0 6px;
+  padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg-card);
   color: var(--text-muted);
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
@@ -1011,7 +1204,8 @@ body {
     --tap-section-height: min(210px, calc(58vw + 16px));
   }
 
-  .balance-section,
+  .pokemon-farm-section,
+  .tap-income-bar,
   .level-progress-section,
   .energy-section {
     flex-shrink: 0;

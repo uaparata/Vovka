@@ -74,6 +74,9 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_version INTEGER DEFAULT 0`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname TEXT`);
     await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS last_energy_regen BIGINT DEFAULT 0`);
+    await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS pokemon_owned JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS pokemon_meta JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS pokemon_farm_buffer JSONB DEFAULT '{}'`);
     await pool.query(`
       INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_save, max_level, peak_balance)
       SELECT u.id, 0, 320, 0, 0, '{}', 0, 0, 1, 0
@@ -97,12 +100,27 @@ function rowToSave(row) {
     typeof row.upgrade_levels === 'string'
       ? JSON.parse(row.upgrade_levels)
       : row.upgrade_levels || {};
+  const ownedPokemon =
+    typeof row.pokemon_owned === 'string'
+      ? JSON.parse(row.pokemon_owned)
+      : row.pokemon_owned || {};
+  const pokemonMeta =
+    typeof row.pokemon_meta === 'string'
+      ? JSON.parse(row.pokemon_meta)
+      : row.pokemon_meta || {};
+  const pokemonFarmBuffer =
+    typeof row.pokemon_farm_buffer === 'string'
+      ? JSON.parse(row.pokemon_farm_buffer)
+      : row.pokemon_farm_buffer || {};
   return {
     balance: Number(row.balance),
     energy: Number(row.energy),
     totalTaps: Number(row.total_taps),
     totalEarned: Number(row.total_earned),
     upgradeLevels: levels,
+    ownedPokemon,
+    pokemonMeta,
+    pokemonFarmBuffer,
     lastPassive: Number(row.last_passive),
     lastEnergyRegen: Number(row.last_energy_regen) || Number(row.last_passive) || 0,
     lastSave: Number(row.last_save),
@@ -236,6 +254,9 @@ async function getOrCreateSave(userId) {
 async function upsertSave(userId, save, options = {}) {
   const fullReplace = !!options.fullReplace;
   const levels = save.upgradeLevels || {};
+  const ownedPokemon = save.ownedPokemon || {};
+  const pokemonMeta = save.pokemonMeta || {};
+  const pokemonFarmBuffer = save.pokemonFarmBuffer || {};
   const payload = {
     user_id: userId,
     balance: save.balance ?? 0,
@@ -243,6 +264,9 @@ async function upsertSave(userId, save, options = {}) {
     total_taps: save.totalTaps ?? 0,
     total_earned: save.totalEarned ?? 0,
     upgrade_levels: levels,
+    pokemon_owned: ownedPokemon,
+    pokemon_meta: pokemonMeta,
+    pokemon_farm_buffer: pokemonFarmBuffer,
     last_passive: save.lastPassive ?? Date.now(),
     last_energy_regen: save.lastEnergyRegen ?? save.lastPassive ?? Date.now(),
     last_save: save.lastSave ?? Date.now(),
@@ -260,14 +284,17 @@ async function upsertSave(userId, save, options = {}) {
       : 'peak_balance = GREATEST(saves.peak_balance, EXCLUDED.peak_balance)';
 
     await pool.query(
-      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, last_passive, last_energy_regen, last_save, max_level, peak_balance)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO saves (user_id, balance, energy, total_taps, total_earned, upgrade_levels, pokemon_owned, pokemon_meta, pokemon_farm_buffer, last_passive, last_energy_regen, last_save, max_level, peak_balance)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (user_id) DO UPDATE SET
          balance = EXCLUDED.balance,
          energy = EXCLUDED.energy,
          total_taps = EXCLUDED.total_taps,
          total_earned = EXCLUDED.total_earned,
          upgrade_levels = EXCLUDED.upgrade_levels,
+         pokemon_owned = EXCLUDED.pokemon_owned,
+         pokemon_meta = EXCLUDED.pokemon_meta,
+         pokemon_farm_buffer = EXCLUDED.pokemon_farm_buffer,
          last_passive = EXCLUDED.last_passive,
          last_energy_regen = EXCLUDED.last_energy_regen,
          last_save = EXCLUDED.last_save,
@@ -281,6 +308,9 @@ async function upsertSave(userId, save, options = {}) {
         payload.total_taps,
         payload.total_earned,
         JSON.stringify(levels),
+        JSON.stringify(ownedPokemon),
+        JSON.stringify(pokemonMeta),
+        JSON.stringify(pokemonFarmBuffer),
         payload.last_passive,
         payload.last_energy_regen,
         payload.last_save,

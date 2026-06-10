@@ -1,11 +1,24 @@
 const UPGRADES = [
   { id: 'protein', basePrice: 50, priceMult: 1.6, maxLevel: 50, effect: (lvl) => ({ perTap: lvl }) },
   { id: 'gym', basePrice: 250, priceMult: 1.7, maxLevel: 30, effect: (lvl) => ({ perTap: lvl * 3 }) },
-  { id: 'creatine', basePrice: 500, priceMult: 1.65, maxLevel: 25, effect: (lvl) => ({ perHour: lvl * 200 }) },
   { id: 'tshirt', basePrice: 1000, priceMult: 2, maxLevel: 10, effect: (lvl) => ({ tapMult: 1 + lvl * 0.5 }) },
   { id: 'earbuds', basePrice: 800, priceMult: 1.8, maxLevel: 20, effect: (lvl) => ({ maxEnergy: lvl * 12 }) },
-  { id: 'ring', basePrice: 2000, priceMult: 2.2, maxLevel: 8, effect: (lvl) => ({ hourMult: 1 + lvl * 1.5 }) },
   { id: 'jacket', basePrice: 1500, priceMult: 2, maxLevel: 15, effect: (lvl) => ({ energyRegen: lvl * 0.1 }) },
+];
+
+const MAX_POKEMON_SLOTS = 4;
+
+const POKEMONS = [
+  {
+    id: 'kirill',
+    name: 'Kirill Mulin',
+    image: 'assets/pokemon-kirill.png',
+    price: 10_000,
+    maxLevel: 20,
+    perHourBase: 500,
+    punchIntervalMs: 2500,
+    weapon: 'fists',
+  },
 ];
 
 const MAX_PASSIVE_ELAPSED_SEC = 4 * 3600;
@@ -42,18 +55,47 @@ function defaultSave() {
     maxLevel: 1,
     peakBalance: 0,
     upgradeLevels: Object.fromEntries(UPGRADES.map((u) => [u.id, 0])),
+    ownedPokemon: {},
+    pokemonMeta: {},
+    pokemonFarmBuffer: {},
     lastSave: Date.now(),
     lastPassive: Date.now(),
     lastEnergyRegen: Date.now(),
   };
 }
 
+function countOwnedPokemon(ownedPokemon) {
+  return Object.values(ownedPokemon || {}).filter((lvl) => (lvl || 0) > 0).length;
+}
+
+function calcPokemonStats(save) {
+  const owned = save.ownedPokemon || {};
+  let perHour = 0;
+  let count = 0;
+  const active = [];
+
+  for (const pokemon of POKEMONS) {
+    const lvl = owned[pokemon.id] || 0;
+    if (lvl <= 0) continue;
+    count += 1;
+    const ph = pokemon.perHourBase * lvl;
+    perHour += ph;
+    active.push({
+      id: pokemon.id,
+      level: lvl,
+      perHour: ph,
+      punchIntervalMs: pokemon.punchIntervalMs,
+      coinsPerPunch: (ph * pokemon.punchIntervalMs) / 3_600_000,
+    });
+  }
+
+  return { perHour, count, active };
+}
+
 function calcStats(save) {
   let perTap = 1;
-  let perHour = 0;
   let maxEnergy = BASE_MAX_ENERGY;
   let tapMult = 1;
-  let hourMult = 1;
   let energyRegen = BASE_ENERGY_REGEN;
 
   for (const upgrade of UPGRADES) {
@@ -61,18 +103,20 @@ function calcStats(save) {
     if (lvl === 0) continue;
     const eff = upgrade.effect(lvl);
     if (eff.perTap) perTap += eff.perTap;
-    if (eff.perHour) perHour += eff.perHour;
     if (eff.maxEnergy) maxEnergy += eff.maxEnergy;
     if (eff.tapMult) tapMult = eff.tapMult;
-    if (eff.hourMult) hourMult = eff.hourMult;
     if (eff.energyRegen) energyRegen += eff.energyRegen;
   }
 
+  const pokemonStats = calcPokemonStats(save);
+
   return {
     perTap: Math.floor(perTap * tapMult),
-    perHour: Math.floor(perHour * hourMult),
+    perHour: Math.floor(pokemonStats.perHour),
     maxEnergy,
     energyRegen,
+    pokemonCount: pokemonStats.count,
+    pokemonActive: pokemonStats.active,
   };
 }
 
@@ -102,12 +146,28 @@ function isFreshResetSave(save) {
     (sum, lvl) => sum + (Number(lvl) || 0),
     0
   );
+  const pokemonSum = Object.values(save.ownedPokemon || {}).reduce(
+    (sum, lvl) => sum + (Number(lvl) || 0),
+    0
+  );
   return (
     upgradeSum === 0 &&
+    pokemonSum === 0 &&
     (save.totalTaps || 0) === 0 &&
     (save.totalEarned || 0) === 0 &&
     (save.balance || 0) === 0
   );
+}
+
+function mergeOwnedPokemon(...objs) {
+  const result = {};
+  for (const obj of objs) {
+    if (!obj) continue;
+    for (const [id, lvl] of Object.entries(obj)) {
+      result[id] = Math.max(result[id] || 0, lvl || 0);
+    }
+  }
+  return result;
 }
 
 function totalUpgradeSpend(upgradeLevels) {
@@ -183,6 +243,9 @@ function mergeSaves(...saves) {
       ...valid.map((s) => s.balance || 0)
     ),
     upgradeLevels: mergeUpgradeLevels(...valid.map((s) => s.upgradeLevels)),
+    ownedPokemon: mergeOwnedPokemon(...valid.map((s) => s.ownedPokemon)),
+    pokemonMeta: valid.reduce((a, b) => ({ ...a, ...(b.pokemonMeta || {}) }), {}),
+    pokemonFarmBuffer: valid.reduce((a, b) => ({ ...a, ...(b.pokemonFarmBuffer || {}) }), {}),
     lastPassive: Math.max(...valid.map((s) => s.lastPassive || 0), Date.now()),
     lastEnergyRegen: Math.max(...valid.map((s) => s.lastEnergyRegen || 0), Date.now()),
     lastSave: Date.now(),
@@ -230,6 +293,9 @@ function reconcileSaves(server, client) {
     ),
     energy: Math.max(srv.energy || 0, client.energy || 0),
     upgradeLevels: client.upgradeLevels,
+    ownedPokemon: mergeOwnedPokemon(srv.ownedPokemon, client.ownedPokemon),
+    pokemonMeta: { ...(srv.pokemonMeta || {}), ...(client.pokemonMeta || {}) },
+    pokemonFarmBuffer: { ...(srv.pokemonFarmBuffer || {}), ...(client.pokemonFarmBuffer || {}) },
     lastPassive: Math.max(srv.lastPassive || 0, client.lastPassive || 0),
     lastEnergyRegen: Math.max(srv.lastEnergyRegen || 0, client.lastEnergyRegen || 0),
     maxLevel: Math.max(srv.maxLevel || 1, client.maxLevel || 1),
@@ -242,27 +308,62 @@ function reconcileSaves(server, client) {
   return merged;
 }
 
+function applyPokemonPunches(save, now = Date.now()) {
+  const { active } = calcPokemonStats(save);
+  if (!active.length) return { earned: 0, punchEvents: [] };
+
+  if (!save.pokemonMeta) save.pokemonMeta = {};
+  if (!save.pokemonFarmBuffer) save.pokemonFarmBuffer = {};
+
+  const maxElapsedMs = MAX_PASSIVE_ELAPSED_SEC * 1000;
+  let totalEarned = 0;
+  const punchEvents = [];
+
+  for (const p of active) {
+    const def = POKEMONS.find((x) => x.id === p.id);
+    if (!def) continue;
+
+    const key = `lastPunch_${p.id}`;
+    const last = save.pokemonMeta[key] || save.lastPassive || now;
+    const elapsed = Math.min(Math.max(0, now - last), maxElapsedMs);
+    const punches = Math.floor(elapsed / def.punchIntervalMs);
+    if (punches <= 0) continue;
+
+    const coinsPerPunch = (def.perHourBase * p.level * def.punchIntervalMs) / 3_600_000;
+    save.pokemonFarmBuffer[p.id] = (save.pokemonFarmBuffer[p.id] || 0) + punches * coinsPerPunch;
+    const whole = Math.floor(save.pokemonFarmBuffer[p.id]);
+    if (whole > 0) {
+      save.pokemonFarmBuffer[p.id] -= whole;
+      totalEarned += whole;
+      punchEvents.push({ id: p.id, count: punches, earned: whole });
+    }
+    save.pokemonMeta[key] = last + punches * def.punchIntervalMs;
+  }
+
+  if (totalEarned > 0) {
+    save.balance += totalEarned;
+    save.totalEarned += totalEarned;
+    syncMaxLevel(save);
+  }
+
+  return { earned: totalEarned, punchEvents };
+}
+
 function applyPassive(save, now = Date.now()) {
   const stats = calcStats(save);
   const elapsed = Math.min(
     Math.max(0, (now - save.lastPassive) / 1000),
     MAX_PASSIVE_ELAPSED_SEC
   );
-  if (elapsed <= 0) return { earned: 0 };
+  if (elapsed <= 0) return { earned: 0, punchEvents: [] };
 
   save.lastPassive = now;
-  let earned = 0;
-  if (stats.perHour > 0) {
-    earned = (stats.perHour / 3600) * elapsed;
-    save.balance += earned;
-    save.totalEarned += earned;
-  }
+  const { earned, punchEvents } = applyPokemonPunches(save, now);
   const regen = stats.energyRegen * elapsed;
   save.energy = Math.min(stats.maxEnergy, save.energy + regen);
   if (save.energy > stats.maxEnergy) save.energy = stats.maxEnergy;
-  syncMaxLevel(save);
   save.lastSave = now;
-  return { earned };
+  return { earned, punchEvents };
 }
 
 function applyTap(save) {
@@ -277,6 +378,28 @@ function applyTap(save) {
   syncMaxLevel(save);
   save.lastSave = Date.now();
   return { ok: true, earned, stats };
+}
+
+function applyBuyPokemon(save, pokemonId) {
+  const pokemon = POKEMONS.find((p) => p.id === pokemonId);
+  if (!pokemon) return { ok: false, reason: 'invalid_pokemon' };
+
+  if (!save.ownedPokemon) save.ownedPokemon = {};
+  if ((save.ownedPokemon[pokemonId] || 0) > 0) {
+    return { ok: false, reason: 'already_owned' };
+  }
+  if (countOwnedPokemon(save.ownedPokemon) >= MAX_POKEMON_SLOTS) {
+    return { ok: false, reason: 'slots_full' };
+  }
+  if (save.balance < pokemon.price) return { ok: false, reason: 'no_money' };
+
+  save.balance -= pokemon.price;
+  save.ownedPokemon[pokemonId] = 1;
+  if (!save.pokemonMeta) save.pokemonMeta = {};
+  save.pokemonMeta[`lastPunch_${pokemonId}`] = Date.now();
+  syncMaxLevel(save);
+  save.lastSave = Date.now();
+  return { ok: true, price: pokemon.price };
 }
 
 function applyBuyUpgrade(save, upgradeId) {
@@ -298,9 +421,12 @@ function applyBuyUpgrade(save, upgradeId) {
 
 module.exports = {
   UPGRADES,
+  POKEMONS,
+  MAX_POKEMON_SLOTS,
   PHOTO_LEVELS,
   defaultSave,
   calcStats,
+  calcPokemonStats,
   getUpgradePrice,
   levelFromBalance,
   syncMaxLevel,
@@ -308,10 +434,14 @@ module.exports = {
   totalUpgradeSpend,
   estimateMaxEarnedFromTaps,
   mergeUpgradeLevelsSafely,
+  mergeOwnedPokemon,
   mergeSaves,
   reconcileSaves,
   saveNeedsSync,
   applyPassive,
+  applyPokemonPunches,
   applyTap,
   applyBuyUpgrade,
+  applyBuyPokemon,
+  countOwnedPokemon,
 };

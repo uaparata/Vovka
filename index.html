@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
   <style>
     :root {
       --tap-img-size: min(260px, calc(72vw - 28px));
@@ -32,6 +32,10 @@
         <span id="level" class="level-value">1</span>
       </div>
       <h1 class="title">Fauck Zini</h1>
+      <div class="header-balance">
+        <span class="coin-icon-sm">💪</span>
+        <span id="balance" class="balance-value-header">0</span>
+      </div>
       <div class="header-right">
         <div class="rank-badge" id="rank">Новичок</div>
         <div id="header-guest">
@@ -47,21 +51,6 @@
         <input type="file" id="avatar-input" accept="image/*" hidden>
       </div>
     </header>
-
-    <section class="balance-section">
-      <div class="balance-card">
-        <span class="balance-label">Зинкоины</span>
-        <div class="balance-row">
-          <span class="coin-icon">💪</span>
-          <span id="balance" class="balance-value">0</span>
-        </div>
-        <div class="income-row">
-          <span id="per-tap">+1 за тап</span>
-          <span class="dot">·</span>
-          <span id="per-hour">+0/час</span>
-        </div>
-      </div>
-    </section>
 
     <section class="level-progress-section">
       <div class="level-progress-header">
@@ -98,15 +87,33 @@
     </section>
 
     <div class="bottom-shell">
+      <section class="pokemon-farm-section">
+        <div class="pokemon-farm-header">
+          <span class="pokemon-farm-title">Pokemons</span>
+          <span id="pokemon-hour-total" class="pokemon-hour-total">+0/час</span>
+        </div>
+        <div id="pokemon-farm" class="pokemon-farm"></div>
+      </section>
+
+      <section class="tap-income-bar">
+        <span id="per-tap" class="tap-income-value">+1 за тап</span>
+      </section>
+
       <nav class="tabs">
-        <button class="tab active" data-tab="upgrades">Улучшения</button>
-        <button class="tab" data-tab="leaderboard">Топ игроков</button>
+        <button class="tab active" data-tab="upgrades">Улучш.</button>
+        <button class="tab" data-tab="pokemons">Pokemons</button>
+        <button class="tab" data-tab="leaderboard">Топ</button>
         <button class="tab" data-tab="stats">Профиль</button>
       </nav>
 
       <div class="panels-wrap">
         <section id="panel-upgrades" class="panel active">
           <div id="upgrades-list" class="upgrades-list"></div>
+        </section>
+
+        <section id="panel-pokemons" class="panel">
+          <p class="pokemon-shop-hint">Максимум 4 Pokemons. Они бьют и фармят зинкоины за удар.</p>
+          <div id="pokemon-shop-list" class="pokemon-shop-list"></div>
         </section>
 
         <section id="panel-leaderboard" class="panel">
@@ -150,8 +157,8 @@
               <span id="stat-earned" class="stat-value">0</span>
             </div>
             <div class="stat-card">
-              <span class="stat-label">Улучшений куплено</span>
-              <span id="stat-upgrades" class="stat-value">0</span>
+              <span class="stat-label">Pokemons</span>
+              <span id="stat-pokemon" class="stat-value">0 / 4</span>
             </div>
             <div class="stat-card">
               <span class="stat-label">Уровень Вовы</span>
@@ -181,6 +188,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=16"></script>
+  <script src="game.js?v=17"></script>
 </body>
 </html>

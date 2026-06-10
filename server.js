@@ -21,9 +21,11 @@ const {
 } = require('./security');
 const {
   UPGRADES,
+  POKEMONS,
   applyPassive,
   applyTap,
   applyBuyUpgrade,
+  applyBuyPokemon,
   mergeUpgradeLevelsSafely,
   reconcileSaves,
   syncMaxLevel,
@@ -408,9 +410,9 @@ async function start() {
 
       await withUserLock(req.user.id, async () => {
         const save = await db.getOrCreateSave(req.user.id);
-        applyPassive(save);
+        const { punchEvents } = applyPassive(save);
         await db.upsertSave(req.user.id, save);
-        res.json({ save });
+        res.json({ save, punchEvents: punchEvents || [] });
       });
     } catch (err) {
       console.error(err);
@@ -439,6 +441,30 @@ async function start() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Buy failed' });
+    }
+  });
+
+  app.post('/api/buy-pokemon', requireAuth, async (req, res) => {
+    try {
+      const { pokemonId } = req.body;
+      if (!POKEMONS.some((p) => p.id === pokemonId)) {
+        return res.status(400).json({ error: 'invalid_pokemon' });
+      }
+
+      await withUserLock(req.user.id, async () => {
+        const save = await db.getOrCreateSave(req.user.id);
+        applyPassive(save);
+        const result = applyBuyPokemon(save, pokemonId);
+        if (!result.ok) {
+          res.status(400).json({ error: result.reason });
+          return;
+        }
+        await db.upsertSave(req.user.id, save);
+        res.json({ save, price: result.price });
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Buy pokemon failed' });
     }
   });
 
